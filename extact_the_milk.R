@@ -60,5 +60,18 @@ ftm_corpus <- chapters |>
          section)
 
 print(ftm_corpus)
-  
-  
+
+# 7. Save the corpus
+# Will save as RDS as the main corpus
+saveRDS(ftm_corpus, here("corpora", paste0(book_id, "_corpus.rds")))
+
+# Save a TSV file as a backup
+# Don't use CSV because of punctuation in the text
+write.table(ftm_corpus, 
+          here("corpora_backup", 
+               paste0(book_id, "_corpus.csv")),
+               sep = "\t",
+               row.names = FALSE,
+               quote = FALSE
+               )
+                         
