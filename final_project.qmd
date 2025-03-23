@@ -3,62 +3,74 @@ title: "final_project"
 ---
 
 ## Project Description
+
 As a prominent contemporary author, Neil Gaiman has produced a substantial body of work spanning diverse genres and targeting audiences ranging from children to adults. This project employs corpus-driven methods to analyse potential stylistic variations in Gaiman's writing that may distinguish works intended for different reader demographics. Through systematic linguistic analysis, the study aims to identify and characterize textual features that differentiate Gaiman's writing across audience-targeted works.
 
 ### Data Loading
+
 ```{r}
 
 ```
 
 ### Exploratory Statistical Analysis
+
 Min/Max/Avg sentence length
 
 ### I. Lexical Level
+
 #### 1. Vocalublary Complexity
-- Lexical diversity 
-- Word length distribution 
-- Word freq
-- coined words -- dic ex
 
-#### 2. Lexical Choices 
-- Content word -- wordnet
-- Keyword analysis
-- cross-book collocation analysis
-- prohibitive expressions 
+-   Lexical diversity
+-   Word length distribution
+-   Word freq
+-   coined words -- dic ex
 
-#### 3. Semantic Dimentions 
-- Emotional language markers 
-  - sentiment per chapter 
-- concreteness vs. abstractness ratios
+#### 2. Lexical Choices
+
+-   Content word -- wordnet
+-   Keyword analysis
+-   cross-book collocation analysis
+-   prohibitive expressions
+
+#### 3. Semantic Dimentions
+
+-   Emotional language markers
+    -   sentiment per chapter
+-   concreteness vs. abstractness ratios
 
 ### II. Sentence Level
-#### 1. Syntectic Structures
-- Sentence length variation
-- Syntactic complexity 
-  - Universal Dependency
 
-#### 2. Modality Patterns 
-- Modal verb freq and types 
-  - deontic/epistemic/dynamic 
-- Modal combinations with hedges and boosters
+#### 1. Syntectic Structures
+
+-   Sentence length variation
+-   Syntactic complexity
+    -   Universal Dependency
+
+#### 2. Modality Patterns
+
+-   Modal verb freq and types
+    -   deontic/epistemic/dynamic
+-   Modal combinations with hedges and boosters
 
 #### 3. Readability Measure
+
 Flesh-Kincaid
 
-### III. Discourse level 
-#### 1. Narrative Perspective 
-- Point of view*
-  - pronoun patterns
-  - narrator distance 
-  - perspective shifts 
+### III. Discourse level
 
-#### 2. Textual Organisation 
-- Paragraph structure 
-  - avg. length & variation*
-  - cohesive devices 
+#### 1. Narrative Perspective
 
-#### 3. Dialogue Feature*
-  This one is hard, usually requires extensive manual annotation fro accurate dialogue extraction and social network analysis. Consider 
-  - remove it 
-  - use simple rule-based approach (quotation mark maybe?)
-  - use machine learning 
+-   Point of view\*
+    -   pronoun patterns
+    -   narrator distance
+    -   perspective shifts
+
+#### 2. Textual Organisation
+
+-   Paragraph structure
+    -   avg. length & variation\*
+    -   cohesive devices
+
+#### 3. Dialogue Feature\*
+
+This one is hard, usually requires extensive manual annotation fro accurate dialogue extraction and social network analysis. Consider - remove it - use simple rule-based approach (quotation mark maybe?) - use machine learning
