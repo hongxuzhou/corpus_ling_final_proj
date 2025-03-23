@@ -7,7 +7,7 @@ As a prominent contemporary author, Neil Gaiman has produced a substantial body 
 
 ### Data Loading
 ```{r}
-1 + 1
+
 ```
 
 ### Exploratory Statistical Analysis
@@ -18,9 +18,13 @@ Min/Max/Avg sentence length
 - Lexical diversity 
 - Word length distribution 
 - Word freq
+- coined words -- dic ex
+
 #### 2. Lexical Choices 
-- Countent word -- wordnet
-- Keyword analysis 
+- Content word -- wordnet
+- Keyword analysis
+- cross-book collocation analysis
+- prohibitive expressions 
 
 #### 3. Semantic Dimentions 
 - Emotional language markers 
@@ -54,7 +58,7 @@ Flesh-Kincaid
   - cohesive devices 
 
 #### 3. Dialogue Feature*
-  This one is hard, usually requies extensive manual annotation fro accurate dialogue extraction and social network analysis. Consider 
+  This one is hard, usually requires extensive manual annotation fro accurate dialogue extraction and social network analysis. Consider 
   - remove it 
   - use simple rule-based approach (quotation mark maybe?)
   - use machine learning 
