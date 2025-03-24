@@ -9,8 +9,8 @@ library(dplyr)
 library(tidyr)
 
 # 1. Define file path
-file_path <- here("raw_data", "Fortunately_the Milk.epub")
-book_id <- "FTM"
+file_path <- here("raw_data", "American Gods.epub")
+book_id <- "AG"
 
 # 2. Use `epubR` to read epub content and metadata
 file_data <- epub(file_path)
