@@ -6,8 +6,8 @@ library(dplyr)
 library(tidyr)
 
 # 1. Define file path and book ID
-file_path <- here("raw_data", "Coraline.epub")
-book_id <- "CL"  # Short identifier for Coraline
+file_path <- here("raw_data", "Neverwhere.epub")
+book_id <- "NW"  # Short identifier for Neverwhere
 
 # 2. Read the epub content
 file_data <- epub(file_path)
@@ -20,65 +20,47 @@ book_metadata <- file_data |>
 # 4. Extract text data
 text_data <- file_data$data[[1]]
 
-# 5. Filter only the chapter sections (id139 to id127)
-# These are the actual chapters based on your screenshot
-chapters <- text_data |> 
-  filter(as.numeric(str_extract(section, "\\d+")) >= 127,
-         as.numeric(str_extract(section, "\\d+")) <= 139) |>
-  # Sort in descending order (id139 to id127)
-  arrange(desc(as.numeric(str_extract(section, "\\d+"))))
+# 5. Create a manual mapping from section IDs to chapter numbers
+# This ensures we correctly handle the non-consecutive IDs
+section_to_chapter <- tibble(
+  section = c("id122", "id121", "id120", "id119", "id118", "id117", 
+              "id116", "id115", "id114", "id113", "id112", "id111", 
+              "id110", "id19", "id18", "id17", "id16", "id15", 
+              "id14", "id13", "id12"),
+  chapter_num = c(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 
+                  14, 15, 16, 17, 18, 19, 20),
+  chapter_title = c("Prologue", 
+                    paste("Chapter", 1:20))
+)
 
-# 6. Extract chapter information
-# For Coraline, chapter titles use Roman numerals
-chapters <- chapters |> 
+# 6. Filter relevant sections and apply the mapping
+neverwhere_corpus <- text_data |> 
+  # Only include sections in our mapping
+  filter(section %in% section_to_chapter$section) |>
+  # Join with our mapping table
+  left_join(section_to_chapter, by = "section") |>
+  # Create consistent chapter_id format
   mutate(
-    # Extract Roman numeral from the start of the text
-    roman_numeral = str_extract(text, "^[IVX]+\\."),
-    # Remove the period from the Roman numeral
-    roman_numeral_clean = str_replace(roman_numeral, "\\.", ""),
-    # Convert Roman numeral to chapter number
-    chapter_num = match(roman_numeral_clean, c("I", "II", "III", "IV", "V", 
-                                               "VI", "VII", "VIII", "IX", 
-                                               "X", "XI", "XII", "XIII")),
-    # Extract chapter title (everything after the Roman numeral and period)
-    chapter_title = str_trim(str_replace(str_extract(text, "^[IVX]+\\.[A-Z ]+"), 
-                                         roman_numeral, "")),
-    # Combine for a clean chapter identifier
-    chapter_id = paste0("Chapter_", chapter_num)
+    chapter_id = paste0("Chapter_", chapter_num),
+    book_id = book_id,
+    title = "Neverwhere"
   ) |>
-  # Re-sort by chapter number
+  # Select and order the final columns
+  select(book_id, title, chapter_id, chapter_num, chapter_title, nword, nchar, text, section) |>
+  # Sort by chapter number
   arrange(chapter_num)
 
-# 7. Build the corpus structure
-coraline_corpus <- chapters |> 
-  mutate(
-    # Add metadata
-    book_id = book_id,
-    title = book_metadata$title,
-    # Format chapter info consistently
-    chapter_title = paste(roman_numeral_clean, chapter_title)
-  ) |> 
-  # Select and organize columns
-  select(book_id, 
-         title, 
-         chapter_id,
-         chapter_num,
-         chapter_title,
-         nword,
-         nchar,
-         text,
-         section)
-
-# Print a preview of the corpus
-print(head(coraline_corpus))
+# 7. Print preview to verify results
+print("Final corpus preview:")
+print(head(neverwhere_corpus, 3))
+print(tail(neverwhere_corpus, 3))
 
 # 8. Save the corpus
-# Save as RDS (R's native data format)
-saveRDS(coraline_corpus, here("corpora", paste0(book_id, "_corpus.rds")))
+saveRDS(neverwhere_corpus, here("corpora", paste0(book_id, "_corpus.rds")))
 
-# Save as TSV for backup (more reliable than CSV for text with punctuation)
-write.table(coraline_corpus, 
+write.table(neverwhere_corpus, 
             here("corpora_backup", paste0(book_id, "_corpus.tsv")),
             sep = "\t",
             row.names = FALSE,
-            quote = TRUE)  # Set quote=TRUE for text containing delimiters
+            quote = TRUE)
+
