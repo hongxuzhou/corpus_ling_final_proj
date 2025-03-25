@@ -1,0 +1,134 @@
+---
+title: "Gaiman_Corpora_Building"
+author: "Hongxu Zhou"
+date: "2025-03-25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(here)
+library(tidyverse)
+```
+
+## Goal
+
+The goal is to organise the single-book corpora into a comprehensive corpus. The notebook contains two parts: 1. corpus implementation, and 2. three-level structure (document -\> sentence -\> lexicon) design.
+
+## Corpus Implementation
+
+### Check data structure of each corpus
+
+The metadata of each corpus may be of minor differences. I will check before merging them into one.
+
+```{r}
+# Load necessary libraries
+library(dplyr)
+library(purrr)
+library(readr)
+library(here)
+
+# 1. Define the list of corpus files
+corpus_files <- list.files(path = here("corpora"), 
+                          pattern = "_corpus\\.rds$", 
+                          full.names = TRUE)
+
+# 2. Function to import and standardize each corpus
+process_corpus <- function(file_path) {
+  # Extract book_id from file name
+  book_id <- gsub("_corpus\\.rds$", "", basename(file_path))
+  
+  # Import corpus
+  corpus <- readRDS(file_path)
+  
+  # Handle different text column names
+  # First check if we have "text" or "full_text" column
+  if ("full_text" %in% names(corpus) && !("text" %in% names(corpus))) {
+    # Rename full_text to text for consistency
+    corpus <- corpus %>% rename(text = full_text)
+  }
+  
+  # Select and standardize required fields
+  standardized_corpus <- corpus %>%
+    # Use any_of to avoid errors if a column is missing
+    select(any_of(c("book_id", "title", "chapter_num", "nword", "nchar", "text"))) %>%
+    # Ensure all required columns exist (create with NA if missing)
+    mutate(
+      book_id = if("book_id" %in% names(.)) book_id else book_id,
+      title = if("title" %in% names(.)) title else NA_character_,
+      chapter_num = if("chapter_num" %in% names(.)) as.integer(chapter_num) else NA_integer_,
+      nword = if("nword" %in% names(.)) as.integer(nword) else NA_integer_,
+      nchar = if("nchar" %in% names(.)) as.integer(nchar) else NA_integer_,
+      text = as.character(text)
+    )
+  
+  # Print info about the processed corpus for monitoring
+  cat("Processed", book_id, "- Rows:", nrow(standardized_corpus), "\n")
+  
+  return(standardized_corpus)
+}
+
+# 3. Import and process all corpus files
+all_corpora <- corpus_files %>%
+  map_dfr(process_corpus)
+
+# 4. Add a unique identifier for each document
+all_corpora <- all_corpora %>%
+  mutate(doc_id = paste0(book_id, "_ch", chapter_num)) %>%
+  select(doc_id, book_id, title, chapter_num, nword, nchar, text)
+
+# 5. Save the combined corpus
+saveRDS(all_corpora, here("corpora", "gaiman_combined_corpus.rds"))
+
+# Optional: Save as TSV for backup
+write_tsv(all_corpora, here("corpora_backup", "gaiman_combined_corpus.tsv"))
+```
+
+Maintain data consistency by simplifying the title of Anasi Boys
+
+```{r}
+
+
+
+# Fix the inconsistent title format
+cleaned_corpus <- combined_corpus %>%
+  mutate(title = case_when(
+    # Replace the specific problematic title
+    title == "Gaiman, Neil - Anansi Boys" ~ "Anansi Boys",
+    # Keep all other titles as they are
+    TRUE ~ title
+  ))
+
+# Save the updated corpus
+saveRDS(cleaned_corpus, here("corpora", "gaiman_combined_corpus.rds"))
+
+# Update the backup TSV as well
+write_tsv(cleaned_corpus, here("corpora_backup", "gaiman_combined_corpus.tsv"))
+```
+
+Another issue, the chapter 14 in Anasi Boys is wrong.
+
+```{r}
+
+
+# Load the combined corpus
+combined_corpus <- readRDS(here("corpora", "gaiman_combined_corpus.rds"))
+
+# Remove the duplicate AB_ch14 rows with very low word counts
+# Rows 15, 17, and 18 have word counts of 21, 23, and 23 respectively
+cleaned_corpus <- combined_corpus %>%
+  # This filters out rows where book_id is "AB", chapter_num is 14, 
+  # and the word count is very small (less than 100)
+  filter(!(book_id == "AB" & chapter_num == 14 & nword < 100))
+
+# Check the result - there should now be only one AB_ch14 entry
+cleaned_corpus %>%
+  filter(book_id == "AB" & chapter_num == 14) %>%
+  select(doc_id, book_id, chapter_num, nword)
+
+# Save the updated corpus
+saveRDS(cleaned_corpus, here("corpora", "gaiman_combined_corpus.rds"))
+
+# Update the backup TSV as well
+write_tsv(cleaned_corpus, here("corpora_backup", "gaiman_combined_corpus.tsv"))
+```
