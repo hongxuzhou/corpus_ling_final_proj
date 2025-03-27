@@ -1,110 +1,107 @@
-# 修改后的语料库构建代码 - 改进章节识别
+# Corpus Extraction Script for American Gods
+# This script extracts the 20 main chapters and handles special sections
+
+# 1. Load required libraries
 library(epubr)
 library(here)
 library(stringr)
 library(dplyr)
-library(tidyr)
 
-# 1. 定义文件路径
+# 2. Define file path and book ID
 file_path <- here("raw_data", "American Gods.epub")
 book_id <- "AG"
 
-# 2. 使用epubR读取epub内容和元数据
+# 3. Read the EPUB file
 file_data <- epub(file_path)
-
-# 3. 提取元数据
-book_metadata <- file_data |> 
-  select(-data) |> 
-  as.list()
-
-# 4. 提取数据
 text_data <- file_data$data[[1]]
 
-# 5. 过滤掉前面的内容，只保留从CHAPTER ONE开始的部分
-# 首先找到CHAPTER ONE对应的行号
-chapter_one_index <- which(str_detect(text_data$text, "^CHAPTER (ONE|1)"))[1]
+# 4. Create direct mapping for chapters with word boundaries 
+# to avoid partial matches (FOUR vs FOURTEEN)
+chapter_patterns <- c(
+  "ONE" = 1, "TWO" = 2, "THREE" = 3, "FOUR" = 4, "FIVE" = 5,
+  "SIX" = 6, "SEVEN" = 7, "EIGHT" = 8, "NINE" = 9, "TEN" = 10,
+  "ELEVEN" = 11, "TWELVE" = 12, "THIRTEEN" = 13, "FOURTEEN" = 14, "FIFTEEN" = 15,
+  "SIXTEEN" = 16, "SEVENTEEN" = 17, "EIGHTEEN" = 18, "NINETEEN" = 19, "TWENTY" = 20
+)
 
-# 过滤保留从CHAPTER ONE开始的内容
-filtered_data <- text_data |>
-  filter(row_number() >= chapter_one_index)
+# 5. Identify chapters and special sections
+processed_data <- text_data |>
+  mutate(
+    # Start with no chapter assignment
+    chapter_num = NA_integer_,
+    # Mark if this is a main chapter start
+    is_chapter_start = FALSE
+  )
 
-# 6. 处理章节与非章节内容
-processed_chapters <- filtered_data |>
-  # 识别正式章节 - 同时处理英文和数字形式的章节标识
-  mutate(
-    # 判断是否为章节开始 - 增强匹配模式
-    is_chapter = str_detect(text, "^CHAPTER (ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE|TEN|ELEVEN|TWELVE|THIRTEEN|FOURTEEN|FIFTEEN|SIXTEEN|SEVENTEEN|EIGHTEEN|NINETEEN|TWENTY|[0-9]+)"),
-    # 去除PART标识
-    is_part = str_detect(text, "^PART [A-Z]+"),
+# Apply main chapter identification
+for (i in 1:nrow(processed_data)) {
+  # Check for main chapter patterns
+  for (j in 1:length(chapter_patterns)) {
+    pattern_name <- names(chapter_patterns)[j]
+    chapter_num <- chapter_patterns[j]
     
-    # 提取章节标识
-    chapter_label = str_extract(text, "^CHAPTER (ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE|TEN|ELEVEN|TWELVE|THIRTEEN|FOURTEEN|FIFTEEN|SIXTEEN|SEVENTEEN|EIGHTEEN|NINETEEN|TWENTY|[0-9]+)"),
-    
-    # 将章节标识转换为数字
-    chapter_num = case_when(
-      # 处理拼写的数字
-      str_detect(chapter_label, "ONE$") ~ 1,
-      str_detect(chapter_label, "TWO$") ~ 2,
-      str_detect(chapter_label, "THREE$") ~ 3,
-      str_detect(chapter_label, "FOUR$") ~ 4,
-      str_detect(chapter_label, "FIVE$") ~ 5,
-      str_detect(chapter_label, "SIX$") ~ 6,
-      str_detect(chapter_label, "SEVEN$") ~ 7,
-      str_detect(chapter_label, "EIGHT$") ~ 8,
-      str_detect(chapter_label, "NINE$") ~ 9,
-      str_detect(chapter_label, "TEN$") ~ 10,
-      str_detect(chapter_label, "ELEVEN$") ~ 11,
-      str_detect(chapter_label, "TWELVE$") ~ 12,
-      str_detect(chapter_label, "THIRTEEN$") ~ 13,
-      str_detect(chapter_label, "FOURTEEN$") ~ 14,
-      str_detect(chapter_label, "FIFTEEN$") ~ 15,
-      str_detect(chapter_label, "SIXTEEN$") ~ 16,
-      str_detect(chapter_label, "SEVENTEEN$") ~ 17,
-      str_detect(chapter_label, "EIGHTEEN$") ~ 18,
-      str_detect(chapter_label, "NINETEEN$") ~ 19,
-      str_detect(chapter_label, "TWENTY$") ~ 20,
-      # 处理数字形式的章节号
-      str_detect(chapter_label, "[0-9]+$") ~ as.numeric(str_extract(chapter_label, "[0-9]+")),
-      TRUE ~ NA_real_
-    )
-  ) |>
-  # 过滤掉PART标记行
-  filter(!is_part) |>
-  # 为每个内容分配其所属的章节
-  mutate(
-    # 使用cumsum创建章节组，每当遇到新章节时增加
-    chapter_group = cumsum(is_chapter),
-    # 提取章节标题(只保留第一行的文本)
-    chapter_title = if_else(is_chapter, chapter_label, NA_character_)
-  ) |>
-  # 按章节分组
-  group_by(chapter_group) |>
-  # 合并每个章节组内的所有文本
+    # Use word boundary to avoid partial matches
+    if (str_detect(processed_data$text[i], paste0("^CHAPTER ", pattern_name, "\\b"))) {
+      processed_data$chapter_num[i] <- chapter_num
+      processed_data$is_chapter_start[i] <- TRUE
+      break
+    }
+  }
+}
+
+# 6. Handle special sections
+# Assign interludes to Chapter 12
+interlude_rows <- which(str_detect(processed_data$text, "^INTERLUDE"))
+processed_data$chapter_num[interlude_rows] <- 12
+
+# Assign postscript to Chapter 20
+postscript_rows <- which(str_detect(processed_data$text, "^Postscript"))
+processed_data$chapter_num[postscript_rows] <- 20
+
+# Handle "Coming to America" and other special narrative sections
+special_rows <- which(str_detect(processed_data$text, 
+                                 "^Coming to America|^Somewhere in America|^Meanwhile") & 
+                        is.na(processed_data$chapter_num))
+
+for (idx in special_rows) {
+  # Find preceding chapters
+  prev_chapters <- which(processed_data$is_chapter_start & (1:nrow(processed_data) < idx))
+  if (length(prev_chapters) > 0) {
+    closest_chapter <- max(prev_chapters)
+    processed_data$chapter_num[idx] <- processed_data$chapter_num[closest_chapter]
+  }
+}
+
+# 7. Filter and combine text by chapter
+final_corpus <- processed_data |>
+  # Keep only rows with assigned chapters and exclude PART dividers
+  filter(!is.na(chapter_num), !str_detect(text, "^PART ")) |>
+  # Group by chapter number only
+  group_by(chapter_num) |>
+  # Combine content within each chapter (using .groups='drop' to avoid issues)
   summarize(
-    section = first(section[is_chapter]),
-    chapter_num = first(chapter_num),
-    chapter_title = first(chapter_title),
-    # 合并文本，保留章节标题
+    # Keep the section ID from the main chapter (first occurrence)
+    section = first(section[is_chapter_start]),
+    # Create proper chapter title
+    chapter_title = paste("CHAPTER", names(chapter_patterns)[match(first(chapter_num), chapter_patterns)]),
+    # Combine all text for this chapter
     text = paste(text, collapse = "\n\n"),
-    # 计算总字数和字符数
+    # Recalculate counts
     nword = sum(nword),
-    nchar = sum(nchar)
+    nchar = sum(nchar),
+    .groups = 'drop'
   ) |>
-  # 确保存在章节号
-  filter(!is.na(chapter_num)) |>
-  # 按章节号排序
-  arrange(chapter_num)
-
-# 7. 构建最终语料库
-final_corpus <- processed_chapters |>
+  # Remove any potential duplicates
+  distinct() |>
+  # Ensure chapters are in order
+  arrange(chapter_num) |>
+  # Add remaining metadata
   mutate(
-    # 添加元数据
     book_id = book_id,
     title = "American Gods",
-    # 创建规范化的章节ID
     chapter_id = sprintf("%s_CH%02d", book_id, chapter_num)
   ) |>
-  # 整理列顺序
+  # Organize columns
   select(
     book_id,
     title,
@@ -117,22 +114,16 @@ final_corpus <- processed_chapters |>
     section
   )
 
-# 8. 保存语料库
-# 主语料库保存为RDS
+# 8. Save the corpus
 saveRDS(final_corpus, here("corpora", paste0(book_id, "_corpus.rds")))
-
-# 保存TSV备份
 write.table(final_corpus, 
             here("corpora_backup", paste0(book_id, "_corpus.tsv")),
             sep = "\t",
             row.names = FALSE,
-            quote = TRUE)  # 使用quote=TRUE防止文本中的制表符问题
+            quote = TRUE)
 
-# 9. 输出处理摘要
-cat(sprintf("处理完成: 从《%s》中提取了%d个章节。\n", 
-            book_metadata$title, nrow(final_corpus)))
-cat(sprintf("总字数: %d\n", sum(final_corpus$nword)))
-
-# 10. 调试输出 - 查看找到的章节
+# 9. Output summary
+cat(sprintf("Processing complete: Extracted %d chapters from 'American Gods'.\n", 
+            nrow(final_corpus)))
+cat(sprintf("Total word count: %d\n", sum(final_corpus$nword)))
 print(final_corpus |> select(chapter_num, chapter_title))
-
