@@ -78,20 +78,21 @@ all_corpora <- all_corpora %>%
   select(doc_id, book_id, title, chapter_num, nword, nchar, text)
 
 # 5. Save the combined corpus
-saveRDS(all_corpora, here("corpora", "gaiman_combined_corpus.rds"))
+saveRDS(all_corpora, here("corpora", "gaiman_corpus.rds"))
 
 # Optional: Save as TSV for backup
-write_tsv(all_corpora, here("corpora_backup", "gaiman_combined_corpus.tsv"))
+write_tsv(all_corpora, here("corpora_backup", "gaiman_corpus.tsv"))
 ```
 
 Maintain data consistency by simplifying the title of Anasi Boys
 
 ```{r}
 
-
+# Load the combined corpus
+AB_corpus <- readRDS(here("corpora", "AB_corpus.rds"))
 
 # Fix the inconsistent title format
-cleaned_corpus <- combined_corpus %>%
+cleaned_corpus <- AB_corpus %>%
   mutate(title = case_when(
     # Replace the specific problematic title
     title == "Gaiman, Neil - Anansi Boys" ~ "Anansi Boys",
@@ -100,10 +101,10 @@ cleaned_corpus <- combined_corpus %>%
   ))
 
 # Save the updated corpus
-saveRDS(cleaned_corpus, here("corpora", "gaiman_combined_corpus.rds"))
+saveRDS(cleaned_corpus, here("corpora", "AB_corpus.rds"))
 
 # Update the backup TSV as well
-write_tsv(cleaned_corpus, here("corpora_backup", "gaiman_combined_corpus.tsv"))
+write_tsv(cleaned_corpus, here("corpora_backup", "AB_corpus.tsv"))
 ```
 
 Another issue, the chapter 14 in Anasi Boys is wrong.
@@ -111,24 +112,23 @@ Another issue, the chapter 14 in Anasi Boys is wrong.
 ```{r}
 
 
-# Load the combined corpus
-combined_corpus <- readRDS(here("corpora", "gaiman_combined_corpus.rds"))
+
 
 # Remove the duplicate AB_ch14 rows with very low word counts
 # Rows 15, 17, and 18 have word counts of 21, 23, and 23 respectively
-cleaned_corpus <- combined_corpus %>%
+cleaned_AB_corpus <- AB_corpus %>%
   # This filters out rows where book_id is "AB", chapter_num is 14, 
   # and the word count is very small (less than 100)
   filter(!(book_id == "AB" & chapter_num == 14 & nword < 100))
 
 # Check the result - there should now be only one AB_ch14 entry
-cleaned_corpus %>%
+cleaned_AB_corpus %>%
   filter(book_id == "AB" & chapter_num == 14) %>%
-  select(doc_id, book_id, chapter_num, nword)
+  select( book_id, chapter_num, nword)
 
 # Save the updated corpus
-saveRDS(cleaned_corpus, here("corpora", "gaiman_combined_corpus.rds"))
+saveRDS(cleaned_AB_corpus, here("corpora", "AB_corpus.rds"))
 
 # Update the backup TSV as well
-write_tsv(cleaned_corpus, here("corpora_backup", "gaiman_combined_corpus.tsv"))
+write_tsv(cleaned_AB_corpus, here("corpora_backup", "AB_corpus.tsv"))
 ```
