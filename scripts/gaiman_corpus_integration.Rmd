@@ -1,0 +1,237 @@
+---
+title: "Gaiman Corpus Integration"
+author: "Hongxu Zhou"
+date: "2025-03-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(tokenizers)
+library(here)
+```
+
+## Sentence Level 
+
+```{r}
+
+doc_corpus <- readRDS(here("corpora", "gaiman_corpus.rds"))
+
+# Function to split text into sentences and create a sentence-level corpus
+create_sentence_corpus <- function(doc_corpus) {
+  # Initialize an empty dataframe to store sentences
+  sentence_corpus <- tibble()
+  
+  # Process each document/chapter
+  for (i in 1:nrow(doc_corpus)) {
+    # Extract document info
+    doc_row <- doc_corpus[i, ]
+    
+    # Split text into sentences
+    sentences <- tokenize_sentences(doc_row$text)[[1]]
+    
+    # Handle empty chapters (like picture-only pages)
+    if (length(sentences) == 0) {
+      # Create a placeholder entry for chapters with no text
+      doc_sentences <- tibble(
+        sentence_id = paste0(doc_row$doc_id, "_s0"),  # Special sentence ID for empty chapters
+        book_id = doc_row$book_id,
+        title = doc_row$title,
+        chapter_num = doc_row$chapter_num,
+        doc_id = doc_row$doc_id,
+        sentence_num = 0,  # Zero indicates a chapter with no sentences
+        text = "[PICTURE_ONLY_CONTENT]",  # Placeholder text
+        word_count = 0,
+        char_count = 0
+      )
+    } else {
+      # Normal case - create sentence dataframe for this document
+      doc_sentences <- tibble(
+        sentence_id = paste0(doc_row$doc_id, "_s", 1:length(sentences)),
+        book_id = doc_row$book_id,
+        title = doc_row$title,
+        chapter_num = doc_row$chapter_num,
+        doc_id = doc_row$doc_id,
+        sentence_num = 1:length(sentences),
+        text = sentences,
+        word_count = sapply(sentences, function(s) length(tokenize_words(s)[[1]])),
+        char_count = nchar(sentences)
+      )
+    }
+    
+    # Append to the main sentence corpus
+    sentence_corpus <- bind_rows(sentence_corpus, doc_sentences)
+  }
+  
+  return(sentence_corpus)
+}
+
+# Create the sentence-level corpus
+sentence_corpus <- create_sentence_corpus(doc_corpus)
+
+# Save the corpus 
+saveRDS(sentence_corpus, here("corpora", "gaiman_sentence_corpus.rds"))
+
+write.table(sentence_corpus,
+            here("corpora_backup", "gaiman_sentence_corpus.tsv"),
+            sep = "\t",
+            row.names = FALSE, 
+            quote = TRUE)
+```
+
+## Word Level
+
+```{r}
+
+sentence_corpus <- readRDS(here("corpora", "gaiman_sentence_corpus.rds"))
+
+# Function to create tokens (all individual words)
+create_token_corpus <- function(sentence_corpus) {
+  # Initialize empty dataframe
+  token_corpus <- tibble()
+  
+  # Process each sentence
+  for (i in 1:nrow(sentence_corpus)) {
+    # Extract sentence info
+    sent_row <- sentence_corpus[i, ]
+    
+    # Tokenize into words
+    words <- tokenize_words(sent_row$text)[[1]]
+    
+    # Skip if no words found
+    if (length(words) == 0) next
+    
+    # Create token dataframe for this sentence
+    sent_tokens <- tibble(
+      token_id = paste0(sent_row$sentence_id, "_w", 1:length(words)),
+      sentence_id = sent_row$sentence_id,
+      doc_id = sent_row$doc_id,
+      book_id = sent_row$book_id,
+      chapter_num = sent_row$chapter_num,
+      position = 1:length(words),  # Position within sentence
+      token = words,
+      token_lower = tolower(words)
+    )
+    
+    # Append to the main token corpus
+    token_corpus <- bind_rows(token_corpus, sent_tokens)
+  }
+  
+  return(token_corpus)
+}
+
+# Create the vocabulary (unique words with statistics)
+create_vocabulary <- function(token_corpus) {
+  vocabulary <- token_corpus %>%
+    # Group by lowercase form to handle case differences
+    group_by(token_lower) %>%
+    summarize(
+      frequency = n(),  # Total frequency
+      doc_frequency = n_distinct(doc_id),  # Document frequency
+      book_frequency = n_distinct(book_id),  # Book frequency
+      example_original = first(token),  # Original form example
+      .groups = "drop"
+    ) %>%
+    # Add rank by frequency
+    arrange(desc(frequency)) %>%
+    mutate(rank = row_number())
+  
+  return(vocabulary)
+}
+
+# Create the token and vocabulary corpora
+token_corpus <- create_token_corpus(sentence_corpus)
+vocabulary <- create_vocabulary(token_corpus)
+
+# Save the word-level corpora
+saveRDS(token_corpus, here("corpora", "gaiman_token_corpus.rds"))
+saveRDS(vocabulary, here("corpora", "gaiman_vocabulary.rds"))
+
+# Backup as TSV
+write.table(vocabulary, 
+            here("corpora_backup", "gaiman_vocabulary.tsv"),
+            sep = "\t", row.names = FALSE, quote = TRUE)
+```
+
+## Create Metadata Layer
+
+```{r}
+# Import corpora 
+# Sentence- and word- level corpora are in the environment
+doc_corpus <- readRDS(here("corpora", "gaiman_corpus.rds"))
+
+# Create hierarchical metadata with proper levels
+create_metadata <- function(doc_corpus, sentence_corpus, token_corpus, vocabulary) {
+  # Book-level statistics (same as before)
+  book_stats <- doc_corpus %>%
+    group_by(book_id, title) %>%
+    summarize(
+      chapters = n_distinct(chapter_num),
+      total_words = sum(nword),
+      total_chars = sum(nchar),
+      .groups = "drop"
+    )
+  
+  # Add sentence statistics
+  book_stats <- sentence_corpus %>%
+    group_by(book_id) %>%
+    summarize(
+      sentences = n(),
+      avg_sentence_length = mean(word_count),
+      .groups = "drop"
+    ) %>%
+    right_join(book_stats, by = "book_id")
+  
+  # Add vocabulary statistics
+  book_vocabulary <- token_corpus %>%
+    group_by(book_id) %>%
+    summarize(
+      unique_words = n_distinct(token_lower),
+      lexical_diversity = n_distinct(token_lower) / n(),
+      .groups = "drop"
+    )
+  
+  # Finalize book-level metadata
+  book_level <- book_stats %>%
+    left_join(book_vocabulary, by = "book_id")
+  
+  # Create separate corpus-level metadata
+  corpus_level <- tibble(
+    corpus_name = "Gaiman Corpus",
+    creation_date = Sys.Date(),
+    corpus_size = sum(book_stats$total_words),
+    corpus_books = n_distinct(book_stats$book_id),
+    corpus_vocab_size = nrow(vocabulary),
+    avg_book_size = mean(book_stats$total_words),
+    avg_lexical_diversity = mean(book_level$lexical_diversity)
+  )
+  
+  # Return both levels as a list
+  return(list(
+    corpus_level = corpus_level,
+    book_level = book_level
+  ))
+}
+
+# Usage
+metadata <- create_metadata(doc_corpus, sentence_corpus, token_corpus, vocabulary)
+
+saveRDS(metadata, here("corpora", "gaiman_corpus_metadata.rds"))
+```
+
+## Corpus Integration 
+
+```{r}
+# Create a comprehensive corpus object
+gaiman_corpus <- list(
+  metadata = metadata,
+  document_level = doc_corpus,
+  sentence_level = sentence_corpus,
+  token_level = token_corpus,
+  vocabulary = vocabulary
+)
+
+# Save the complete corpus
+saveRDS(gaiman_corpus, here("corpora", "gaiman_corpus_complete.rds"))
+```
