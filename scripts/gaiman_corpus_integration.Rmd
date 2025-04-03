@@ -12,7 +12,7 @@ library(tokenizers)
 library(here)
 ```
 
-## Sentence Level 
+## Sentence Level
 
 ```{r}
 
@@ -220,7 +220,7 @@ metadata <- create_metadata(doc_corpus, sentence_corpus, token_corpus, vocabular
 saveRDS(metadata, here("corpora", "gaiman_corpus_metadata.rds"))
 ```
 
-## Corpus Integration 
+## Corpus Integration
 
 ```{r}
 # Create a comprehensive corpus object
