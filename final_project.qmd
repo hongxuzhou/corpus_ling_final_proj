@@ -1,76 +1,849 @@
 ---
-title: "final_project"
+title: "Stylistic Variations in Neil Gaiman's Work: A Corpus-Driven Analysi"
+date: "r Sys.Date()"
 ---
 
 ## Project Description
 
 As a prominent contemporary author, Neil Gaiman has produced a substantial body of work spanning diverse genres and targeting audiences ranging from children to adults. This project employs corpus-driven methods to analyse potential stylistic variations in Gaiman's writing that may distinguish works intended for different reader demographics. Through systematic linguistic analysis, the study aims to identify and characterize textual features that differentiate Gaiman's writing across audience-targeted works.
 
-### Data Loading
+### Initial Set-up and Data Loading
+
+```{r}
+# Load required packages
+library(tidyverse)      
+library(here)           
+library(quanteda)       
+library(quanteda.textstats)  
+library(sentimentr)     
+library(wordcloud)      
+library(ggplot2)        
+library(gridExtra)     
+library(scales)        
+library(ggridges)      
+library(dplyr)
+library(stopwords)
+```
 
 ```{r}
 
+# Read the corpus
+gaiman_corpus <- readRDS(here("corpora", "gaiman_corpus_complete.rds"))
+
+# Explore the structure
+str(gaiman_corpus, max.level = 1)
 ```
+
+The corpus contains three levels of the texts: document-level (tokenised by chapter); sentence-level (tokenised by sentence-end punctuation); and token-level (tokenised by word).
+
+(I will put a table here showcasing the sizes of each book with basic statistics)
+
+\
+To accelerate the calculation and analysis, some basic statistical features are calculated beforehand and added to the corpus as the layers of Metadata and Vocabulary.
 
 ### Exploratory Statistical Analysis
 
-Min/Max/Avg sentence length
+```{r}
+# Extract book-level metadata
+book_metadata <- gaiman_corpus$metadata$book_level
+
+# Display basic statistics about the corpus 
+corpus_summary <- book_metadata |> 
+  summarise(
+    total_books = n(),
+    total_words = sum(total_words),
+    avg_words_per_book = mean(total_words),
+    avg_chapters = mean(chapters),
+    avg_sentences = mean(sentences),
+    avg_sentence_length = mean(avg_sentence_length),
+    avg_lexical_diversity = mean(lexical_diversity)
+  )
+
+print(corpus_summary)
+```
 
 ### I. Lexical Level
 
-#### 1. Vocalublary Complexity
+#### 1. Vocabulary Complexity
 
--   Lexical diversity
--   Word length distribution
--   Word freq
--   coined words -- dic ex
+##### Lexical Diversity
+
+First, we check lexical diversity
+
+```{r}
+# Lexical diversity is already stored in the corpus, so we just need to visulaise it 
+lex_div_plot <- ggplot(book_metadata, 
+                      aes(x = reorder(book_id, lexical_diversity), 
+                          y = lexical_diversity)) +
+  geom_bar(stat = "identity", fill = "lightgreen", alpha = 0.8) +
+  # Add reference line for average
+  geom_hline(yintercept = mean(book_metadata$lexical_diversity), 
+             linetype = "dashed", color = "red") +
+  # Add text annotation for average
+  annotate("text", 
+           x = 1, 
+           y = mean(book_metadata$lexical_diversity) + 0.01, 
+           label = "Corpus Average", 
+           hjust = 0, 
+           color = "red") +
+  labs(
+    title = "Lexical Diversity by Book",
+    subtitle = "Higher values indicate more varied vocabulary",
+    x = "Book",
+    y = "Type-Token Ratio"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+print(lex_div_plot)
+
+```
+
+It might be counter-intuitive to see that the shortest, very children-oriented painted book Fortunately, the Milk has the highest TTR, while the longer, adult-targeted books such as American Gods and Anasi Boys are the lowerest. However, it makes sense. Given that FTM is the shortest, the words are more likely to appear in fewer times, even only once, which increases the ratio of type. Being opposite to that, the long novels contain much more words of which many are common words. They water down TTR. This calls for more detailed and comprehensive stylistic analysis on multiple layers of the text.
+
+##### Word Length Distribution
+
+Moving on, we check the distribution of word length
+
+```{r}
+# Calculate word length for all tokens
+token_length <- gaiman_corpus$token_level |> 
+  # Calculate character length of each token 
+  mutate(word_length = nchar(token))
+
+# With token length, we can calculate word lengh by book
+word_lengh_stats <- token_length |> 
+  group_by(book_id) |> 
+  summarise(
+    avg_length = mean(word_length),
+    median_length = median(word_length),
+    sd_length = sd(word_length),
+    # We can further check the percentage of words by length 
+    short_word_pct = mean(word_length <= 4) * 100, # 1-4 words = short
+    medium_word_pct = mean(word_length > 4 & word_length <= 8)* 100, # 4 - 8 = medium
+    long_word_pct = mean(word_length >8)*100, # 9+ words are long
+    .groups = "drop"
+  ) |> 
+  arrange(desc(avg_length))
+
+print(word_lengh_stats)
+```
+
+We can visualise the results
+
+```{r}
+word_lengh_dist <- token_length |> 
+  # Count occurrences of each word length in each book 
+  count(book_id, word_length) |> 
+  # Group by book to calculate percentages 
+  group_by(book_id) |> 
+  mutate(percentage = n / sum(n) * 100) |> 
+  ungroup() |> 
+  # start vis
+  ggplot(aes(x = word_length, 
+             y = percentage,
+             color = book_id,
+             group = book_id)) +
+  geom_line(linewidth = 1, alpha = 0.7) + # no more "size", update to linewidth
+  labs(
+    title = "Word Length Distribution by Book", 
+    subtitle = "Percentage of words at each character length",
+    x = "Word Length (by character)",
+    Y = "Percentage of books",
+    color = "Book"
+    
+  )+
+  theme_classic() +
+  theme(legend.position = "bottom")
+
+print(word_lengh_dist)
+```
+
+As the chart shows, Gaiman's writing shows a consistent pattern across his works. Most words are at around 4 characters, which reflect the common pattern of English.
+
+##### Word Frequency
+
+We first remove common stopwords before checking the word frequency
+
+```{r}
+vocabulary <- gaiman_corpus$vocabulary
+stopwords = stopwords(language = "en")
+
+top_content_words <- vocabulary |> 
+  filter(!(token_lower %in% stopwords)) |> 
+  arrange(desc(frequency)) |> 
+  head(30)
+
+# Skip printing resutls, directly visualise the bar chart
+top_words_plot <- ggplot(top_content_words,
+                         aes(x = reorder(token_lower, frequency),
+                             y = frequency)) +
+  geom_bar(stat = "identity", fill = "cornflowerblue") +
+  labs(
+    title = "Top 30 Conent Words in Gaiman Corpus",
+    subtitle = "Stopwords applied",
+    x = "Word",
+    y = "Frequency"
+  ) + 
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 35, hjust = 1))
+
+print(top_words_plot)
+```
 
 #### 2. Lexical Choices
 
--   Content word -- wordnet
+We will use the package `quanteda` for most lexical analysis
+
+First, we will prepare quanteda corpora for analysis:
+
+```{r}
+# Create a corpus from the document level data
+quanteda_corpus <- corpus(
+  gaiman_corpus$document_level$text,
+  docnames = gaiman_corpus$document_level$doc_id
+)
+
+# Add document variables for grouping
+docvars(quanteda_corpus, "book_id") <- gaiman_corpus$document_level$book_id
+docvars(quanteda_corpus, "title") <- gaiman_corpus$document_level$title
+docvars(quanteda_corpus, "chapter_num") <- gaiman_corpus$document_level$chapter_num
+
+```
+
 -   Keyword analysis
--   cross-book collocation analysis
--   prohibitive expressions
 
-#### 3. Semantic Dimentions
+    -   consider a big table showing the top 10 keywords of the ten books
 
--   Emotional language markers
-    -   sentiment per chapter
--   concreteness vs. abstractness ratios
+        -   Maybe not too much, because that would be too dense to read
+
+            -   if there are shared keywords, consider showing the different collocations
+
+##### Keyword analysis
+
+We use log-off to calculate keywords of the ten books
+
+```{r}
+# Log odds function to compare one book against all others
+# This identifies distinctive words in each book compared to other books
+calculate_log_odds <- function(dfm_obj, target_book) {
+  # Get index of target book
+  target_idx <- which(docnames(dfm_obj) == target_book)
+  
+  # Skip if book not found
+  if(length(target_idx) == 0) return(NULL)
+  
+  # Get counts for target book
+  target_counts <- as.numeric(dfm_obj[target_idx,])
+  target_total <- sum(target_counts)
+  
+  # Get counts for all other books
+  others_counts <- colSums(dfm_obj[-target_idx,])
+  others_total <- sum(others_counts)
+  
+  # Calculate log odds (adding small constant to prevent division by zero)
+  epsilon <- 0.5  # Smoothing constant
+  log_odds <- log((target_counts + epsilon) / (target_total - target_counts + epsilon)) - 
+              log((others_counts + epsilon) / (others_total - others_counts + epsilon))
+  
+  # Create results data frame
+  data.frame(
+    term = colnames(dfm_obj),
+    log_odds = log_odds,
+    target_count = target_counts,
+    others_count = others_counts,
+    stringsAsFactors = FALSE
+  ) %>%
+    # Sort by log odds (descending)
+    arrange(desc(log_odds))
+}
+
+# Create document-feature matrix
+book_dfm <- tokens(quanteda_corpus) %>%
+  tokens_remove(stopwords("en")) %>%
+  tokens_remove(pattern = "[\\d\\p{P}]", valuetype = "regex") %>% # Remove numbers and punctuation
+  dfm() %>%
+  dfm_trim(min_termfreq = 3) %>%  # Remove very rare terms
+  dfm_group(groups = docvars(quanteda_corpus, "book_id"))
+
+# Get log odds for each book
+book_ids <- unique(docvars(quanteda_corpus, "book_id"))
+all_keywords <- list()
+
+for (book_id in book_ids) {
+  # Calculate log odds
+  book_keywords <- calculate_log_odds(book_dfm, book_id)
+  
+  # Skip if book not found in DFM
+  if(is.null(book_keywords)) next
+  
+  # Keep top 20 distinctive words
+  book_keywords <- book_keywords %>%
+    head(20) %>%
+    mutate(book_id = book_id)
+  
+  # Add to results list
+  all_keywords[[book_id]] <- book_keywords
+}
+
+# Combine results
+keywords_df <- bind_rows(all_keywords)
+```
+
+We can visualise the results:
+
+```{r}
+# Visualize top 5 keywords for each book
+top_keywords_plot <- keywords_df %>%
+  group_by(book_id) %>%
+  slice_head(n = 10) %>%
+  ungroup() %>%
+  ggplot(aes(x = tidytext::reorder_within(term, log_odds, book_id), 
+             y = log_odds, 
+             fill = book_id)) +
+  geom_col() +
+  facet_wrap(~ book_id, scales = "free_y") +
+  upstartr::scale_x_reordered() +  # Required for reorder_within
+  coord_flip() +
+  labs(
+    title = "Top 10 Distinctive Words by Book",
+    subtitle = "Based on log odds ratio compared to other books",
+    x = "Term",
+    y = "Log Odds Ratio"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+print(top_keywords_plot)
+```
 
 ### II. Sentence Level
 
-#### 1. Syntectic Structures
+#### 1. Syntactic Structures
 
 -   Sentence length variation
 -   Syntactic complexity
     -   Universal Dependency
+        -   consider calculating the numbers – is it possible?
+        
+        
+```{r}
+#| label: sentiment anlaysis prepare
+# Prepare sentence data
+sentence_data <- gaiman_corpus$sentence_level %>%
+  select(book_id, title, chapter_num, sentence_id, text)
+```
 
-#### 2. Modality Patterns
+```{r}
+# Calculate sentence length statistics
+sentence_length_stats <- sentence_data %>%
+  # Add sentence length in words
+  mutate(sentence_length = sapply(strsplit(text, "\\s+"), length)) %>%
+  # Group by book
+  group_by(book_id) %>%
+  # Calculate statistics
+  summarise(
+    avg_length = mean(sentence_length),
+    median_length = median(sentence_length),
+    sd_length = sd(sentence_length),
+    min_length = min(sentence_length),
+    max_length = max(sentence_length),
+    short_sent_pct = mean(sentence_length <= 5) * 100,  # Percentage of short sentences
+    long_sent_pct = mean(sentence_length > 20) * 100    # Percentage of long sentences
+  ) %>%
+  arrange(desc(avg_length))
 
--   Modal verb freq and types
-    -   deontic/epistemic/dynamic
--   Modal combinations with hedges and boosters
+# Visualize sentence length distribution
+sentence_length_vis <- sentence_data %>%
+  # Add sentence length in words
+  mutate(sentence_length = sapply(strsplit(text, "\\s+"), length)) %>%
+  # Remove extreme outliers for better visualization
+  filter(sentence_length <= 50) %>%
+  ggplot(aes(x = sentence_length, y = book_id, fill = book_id)) +
+  geom_density_ridges(alpha = 0.7, scale = 3) +
+  labs(
+    title = "Sentence Length Distribution by Book",
+    subtitle = "Ridgeline plot of word counts per sentence",
+    x = "Words per Sentence",
+    y = "Book"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+print(sentence_length_vis)
+```
+
+#### 2. Sentiment Analysis
+
+-   Maybe check the sentiment variation by chapter
+
+    -   consider visualise the ups and downs
+        -   but how to solve the inconsistent chapter length? Some books have much more chapters
+
+
+
+```{r}
+#| label: sentiment analysis
+
+
+# Calculate sentiment at sentence level using sentiment_by()
+# This approach preserves the original structure and avoids tokenisation issues
+sentence_sentiment <- sentiment_by(
+  text.var = sentence_data$text,
+  by = list(
+    book_id = sentence_data$book_id,
+    title = sentence_data$title,
+    chapter_num = sentence_data$chapter_num,
+    sentence_id = sentence_data$sentence_id
+  )
+)
+
+# Calculate book-level sentiment averages
+book_sentiment <- sentence_sentiment %>%
+  group_by(book_id) %>%
+  summarise(
+    ave_sentiment = mean(ave_sentiment, na.rm = TRUE),
+    sd = sd(ave_sentiment, na.rm = TRUE),
+    min_sentiment = min(ave_sentiment, na.rm = TRUE),
+    max_sentiment = max(ave_sentiment, na.rm = TRUE),
+    sentiment_range = max_sentiment - min_sentiment,
+    positive_pct = mean(ave_sentiment > 0, na.rm = TRUE) * 100,
+    negative_pct = mean(ave_sentiment < 0, na.rm = TRUE) * 100,
+    neutral_pct = mean(ave_sentiment == 0, na.rm = TRUE) * 100
+  ) %>%
+  arrange(desc(ave_sentiment))
+
+# Visualize average sentiment by book
+sentiment_plot <- ggplot(book_sentiment, 
+                        aes(x = reorder(book_id, ave_sentiment), 
+                            y = ave_sentiment)) +
+  geom_col(fill = "skyblue") +
+  geom_errorbar(aes(ymin = ave_sentiment - sd, 
+                   ymax = ave_sentiment + sd),
+               width = 0.2) +
+  labs(
+    title = "Average Sentiment by Book",
+    subtitle = "Error bars represent standard deviation",
+    x = "Book",
+    y = "Average Sentiment Score"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+print(sentiment_plot)
+
+# Visualize sentiment distribution by book
+sentiment_dist_plot <- ggplot(sentence_sentiment, 
+                             aes(x = ave_sentiment, fill = book_id)) +
+  geom_density(alpha = 0.7) +
+  facet_wrap(~book_id) +
+  labs(
+    title = "Sentiment Distribution by Book",
+    x = "Sentiment Score",
+    y = "Density"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+print(sentiment_dist_plot)
+
+# Plot sentiment polarity distribution (positive/negative/neutral)
+sentiment_polarity <- book_sentiment %>%
+  select(book_id, positive_pct, negative_pct, neutral_pct) %>%
+  pivot_longer(
+    cols = c(positive_pct, negative_pct, neutral_pct),
+    names_to = "polarity",
+    values_to = "percentage"
+  ) %>%
+  mutate(
+    polarity = case_when(
+      polarity == "positive_pct" ~ "Positive",
+      polarity == "negative_pct" ~ "Negative",
+      polarity == "neutral_pct" ~ "Neutral"
+    )
+  )
+
+polarity_plot <- ggplot(sentiment_polarity, 
+                       aes(x = book_id, y = percentage, fill = polarity)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(
+    title = "Sentiment Polarity by Book",
+    subtitle = "Percentage of positive, negative, and neutral sentences",
+    x = "Book",
+    y = "Percentage of Sentences",
+    fill = "Sentiment Polarity"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+print(polarity_plot)
+
+# Optional: Look at sentiment flow through chapters for a specific book
+# This shows how sentiment changes throughout the narrative
+sentiment_flow <- sentence_sentiment %>%
+  filter(book_id == "AG") %>%  # Change to analyze different books
+  group_by(chapter_num) %>%
+  summarise(
+    chapter_sentiment = mean(ave_sentiment, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+flow_plot <- ggplot(sentiment_flow, aes(x = chapter_num, y = chapter_sentiment)) +
+  geom_line(group = 1, color = "blue", linewidth = 1) +
+  geom_point(size = 3, color = "darkblue") +
+  geom_smooth(se = FALSE, color = "red", linetype = "dashed") +
+  labs(
+    title = "Sentiment Flow Through American Gods",
+    subtitle = "Average sentiment by chapter",
+    x = "Chapter Number",
+    y = "Average Sentiment"
+  ) +
+  theme_minimal()
+
+print(flow_plot)
+```
+
+-   Prohibitive Expressions Analysis
+
+    -   Use profanity() and profanity_by() functions provided by sentimentR
+
+```{r}
+# Calculate profanity metrics
+profanity_results <- profanity_by(
+  text.var = sentence_data$text,
+  by = sentence_data$book_id
+)
+
+# Create readable profanity summary
+profanity_summary <- profanity_results %>%
+  arrange(desc(ave_profanity)) %>%
+  mutate(
+    profanity_percentage = ave_profanity * 100,
+    # Format for display
+    profanity_rate = sprintf("%.2f%%", profanity_percentage)
+  )
+
+# Visualize profanity by book
+profanity_plot <- ggplot(profanity_summary, 
+                        aes(x = reorder(book_id, ave_profanity), 
+                            y = ave_profanity * 100)) +
+  geom_col(fill = "coral") +
+  labs(
+    title = "Profanity Rate by Book",
+    subtitle = "Percentage of words identified as profane",
+    x = "Book",
+    y = "Profanity Rate (%)"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+print(profanity_plot)
+```
 
 #### 3. Readability Measure
 
-Flesh-Kincaid
+```{r}
+# Function to calculate readability scores for a piece of text
+calculate_readability <- function(texts, book_ids) {
+  require(quanteda.textstats)
+  
+  # Calculate readability scores
+  readability_scores <- textstat_readability(
+    texts,
+    measure = c("Flesch.Kincaid", "Flesch", "Dale.Chall")
+  )
+  
+  # Add book IDs
+  readability_scores$book_id <- book_ids
+  
+  return(readability_scores)
+}
+
+# Prepare text for each book (combine all chapters)
+book_texts <- gaiman_corpus$document_level %>%
+  group_by(book_id) %>%
+  summarise(text = paste(text, collapse = " ")) %>%
+  ungroup()
+
+# Calculate readability scores
+readability_results <- calculate_readability(
+  book_texts$text,
+  book_texts$book_id
+)
+
+# Visualize readability scores
+readability_long <- readability_results %>%
+  select(book_id, Flesch.Kincaid, Flesch, Dale.Chall) %>%
+  pivot_longer(
+    cols = c(Flesch.Kincaid, Flesch, Dale.Chall),
+    names_to = "measure",
+    values_to = "score"
+  )
+
+# Create a more descriptive measure label
+readability_long <- readability_long %>%
+  mutate(measure_label = case_when(
+    measure == "Flesch.Kincaid" ~ "Flesch-Kincaid Grade Level",
+    measure == "Flesch" ~ "Flesch Reading Ease",
+    measure == "Dale.Chall" ~ "Dale-Chall Readability",
+    TRUE ~ measure
+  ))
+
+# Plot readability scores
+readability_plot <- ggplot(readability_long, 
+                           aes(x = reorder(book_id, score), 
+                               y = score, 
+                               fill = measure_label)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_wrap(~measure_label, scales = "free_y") +
+  labs(
+    title = "Readability Scores by Book",
+    subtitle = "Higher Flesch scores = easier to read; lower grade levels = easier to read",
+    x = "Book",
+    y = "Score"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "none"
+  )
+
+print(readability_plot)
+```
 
 ### III. Discourse level
 
 #### 1. Narrative Perspective
 
--   Point of view\*
+-   Point of view
     -   pronoun patterns
-    -   narrator distance
-    -   perspective shifts
 
-#### 2. Textual Organisation
+```{r}
+# Function to analyze POV markers in text
+analyze_pov <- function(text) {
+  # Define POV marker patterns
+  first_person <- "\\b(I|me|my|mine|myself|we|us|our|ours|ourselves)\\b"
+  second_person <- "\\b(you|your|yours|yourself|yourselves)\\b"
+  third_person_m <- "\\b(he|him|his|himself)\\b"
+  third_person_f <- "\\b(she|her|hers|herself)\\b"
+  third_person_n <- "\\b(it|its|itself)\\b"
+  third_person_p <- "\\b(they|them|their|theirs|themselves)\\b"
+  
+  # Count matches (case insensitive)
+  first <- str_count(tolower(text), first_person)
+  second <- str_count(tolower(text), second_person)
+  third_m <- str_count(tolower(text), third_person_m)
+  third_f <- str_count(tolower(text), third_person_f)
+  third_n <- str_count(tolower(text), third_person_n)
+  third_p <- str_count(tolower(text), third_person_p)
+  
+  # Calculate totals
+  first_total <- first
+  second_total <- second
+  third_total <- third_m + third_f + third_n + third_p
+  
+  # Return counts
+  return(c(
+    first_person = first_total,
+    second_person = second_total,
+    third_person = third_total,
+    third_male = third_m,
+    third_female = third_f,
+    third_neutral = third_n,
+    third_plural = third_p
+  ))
+}
 
--   Paragraph structure
-    -   avg. length & variation\*
-    -   cohesive devices
+# Apply to book texts
+pov_results <- book_texts %>%
+  rowwise() %>%
+  mutate(pov_data = list(analyze_pov(text))) %>%
+  ungroup() %>%
+  mutate(
+    first_person = map_dbl(pov_data, ~ .x["first_person"]),
+    second_person = map_dbl(pov_data, ~ .x["second_person"]),
+    third_person = map_dbl(pov_data, ~ .x["third_person"]),
+    third_male = map_dbl(pov_data, ~ .x["third_male"]),
+    third_female = map_dbl(pov_data, ~ .x["third_female"]),
+    third_neutral = map_dbl(pov_data, ~ .x["third_neutral"]),
+    third_plural = map_dbl(pov_data, ~ .x["third_plural"]),
+    total_words = str_count(text, "\\S+"),
+    # Calculate percentages
+    first_pct = first_person / total_words * 100,
+    second_pct = second_person / total_words * 100,
+    third_pct = third_person / total_words * 100
+  ) %>%
+  select(-pov_data, -text)
 
-#### 3. Dialogue Feature\*
+# Visualize POV distribution
+pov_long <- pov_results %>%
+  select(book_id, first_pct, second_pct, third_pct) %>%
+  pivot_longer(
+    cols = c(first_pct, second_pct, third_pct),
+    names_to = "pov",
+    values_to = "percentage"
+  ) %>%
+  mutate(
+    pov = case_when(
+      pov == "first_pct" ~ "First Person",
+      pov == "second_pct" ~ "Second Person",
+      pov == "third_pct" ~ "Third Person"
+    )
+  )
 
-This one is hard, usually requires extensive manual annotation fro accurate dialogue extraction and social network analysis. Consider - remove it - use simple rule-based approach (quotation mark maybe?) - use machine learning
+pov_plot <- ggplot(pov_long, 
+                  aes(x = book_id, y = percentage, fill = pov)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(
+    title = "Point of View Distribution by Book",
+    subtitle = "Percentage of personal pronouns by category",
+    x = "Book",
+    y = "Percentage of Total Words",
+    fill = "Point of View"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+print(pov_plot)
+```
+
+#### 2. Modality
+
+-   use simple modal verbs categories
+
+```{r}
+
+# Function to analyze modal verbs
+analyze_modals <- function(text) {
+  # Define modal verb categories
+  ability <- "\\b(can|could|be able to)\\b"
+  permission <- "\\b(may|might|can|could)\\b"
+  obligation <- "\\b(must|should|ought to|have to|has to|had to)\\b"
+  possibility <- "\\b(may|might|could|can)\\b"
+  certainty <- "\\b(will|shall|would|must)\\b"
+  
+  # Count matches (case insensitive)
+  ability_count <- str_count(tolower(text), ability)
+  permission_count <- str_count(tolower(text), permission)
+  obligation_count <- str_count(tolower(text), obligation)
+  possibility_count <- str_count(tolower(text), possibility)
+  certainty_count <- str_count(tolower(text), certainty)
+  
+  # Return counts
+  return(c(
+    ability = ability_count,
+    permission = permission_count,
+    obligation = obligation_count,
+    possibility = possibility_count,
+    certainty = certainty_count
+  ))
+}
+
+# Apply to book texts
+modal_results <- book_texts %>%
+  rowwise() %>%
+  mutate(modal_data = list(analyze_modals(text))) %>%
+  ungroup() %>%
+  mutate(
+    ability = map_dbl(modal_data, ~ .x["ability"]),
+    permission = map_dbl(modal_data, ~ .x["permission"]),
+    obligation = map_dbl(modal_data, ~ .x["obligation"]),
+    possibility = map_dbl(modal_data, ~ .x["possibility"]),
+    certainty = map_dbl(modal_data, ~ .x["certainty"]),
+    total_words = str_count(text, "\\S+"),
+    # Calculate percentages
+    ability_pct = ability / total_words * 100,
+    permission_pct = permission / total_words * 100,
+    obligation_pct = obligation / total_words * 100,
+    possibility_pct = possibility / total_words * 100,
+    certainty_pct = certainty / total_words * 100
+  ) %>%
+  select(-modal_data, -text)
+
+# Visualize modal verb usage
+modal_long <- modal_results %>%
+  select(book_id, contains("_pct")) %>%
+  pivot_longer(
+    cols = contains("_pct"),
+    names_to = "modal_type",
+    values_to = "percentage"
+  ) %>%
+  mutate(
+    modal_type = str_replace(modal_type, "_pct", "")
+  )
+
+modal_plot <- ggplot(modal_long, 
+                    aes(x = book_id, y = percentage, fill = modal_type)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(
+    title = "Modal Verb Usage by Book",
+    subtitle = "Percentage of words by modal category",
+    x = "Book",
+    y = "Percentage of Total Words",
+    fill = "Modal Category"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+print(modal_plot)
+```
+
+#### 4. Combined Analysis
+
+-   consider a way to combine POV and modal verbs
+
+### IV. Comprehensive Analysis
+
+Consider use PCA to visualise the distribution of the ten books on the spectrum of children-adults.\
+Or if you have some better idea.
+
+#### 
+
+```{r}
+# Combine all metrics into a single feature matrix
+feature_matrix <- book_metadata %>%
+  select(book_id, lexical_diversity) %>%
+  # Add word length features
+  left_join(word_lengh_stats, by = "book_id") %>%
+  # Add readability scores
+  left_join(
+    readability_results %>% select(book_id, Flesch.Kincaid, Flesch, Dale.Chall),
+    by = "book_id"
+  ) %>%
+  # Add sentiment
+  left_join(
+    book_sentiment %>% select(book_id, ave_sentiment, sd),
+    by = "book_id"
+  ) %>%
+  # Add profanity
+  left_join(
+    profanity_summary %>% select(book_id, ave_profanity),
+    by = "book_id"
+  ) %>%
+  # Add sentence length
+  left_join(
+    sentence_length_stats %>% select(book_id, avg_length, sd_length),
+    by = "book_id"
+  ) %>%
+  # Add POV metrics
+  left_join(
+    pov_results %>% select(book_id, first_pct, second_pct, third_pct),
+    by = "book_id"
+  ) %>%
+  # Add modal metrics
+  left_join(
+    modal_results %>% select(book_id, contains("_pct")),
+    by = "book_id"
+  )
+
+# Add audience category (this needs to be defined based on your knowledge of the books)
+feature_matrix <- feature_matrix %>%
+  mutate(
+    target_audience = case_when(
+      book_id %in% c("FTM", "OFG", "CL", "TGB") ~ "Children",
+      book_id %in% c("ST", "OCEAN") ~ "Young Adult", 
+      book_id %in% c("AG", "AB", "NW", "SM") ~ "Adult",
+      TRUE ~ "Unknown"
+    )
+  )
+```
