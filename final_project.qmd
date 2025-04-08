@@ -10,6 +10,8 @@ As a prominent contemporary author, Neil Gaiman has produced a substantial body 
 ### Initial Set-up and Data Loading
 
 ```{r}
+#| label: packages_loading
+#| include: false
 # Load required packages
 library(tidyverse)      
 library(here)           
@@ -23,9 +25,13 @@ library(scales)
 library(ggridges)      
 library(dplyr)
 library(stopwords)
+library(udpipe)
+library(ggrepel) 
+library(factoextra) 
 ```
 
 ```{r}
+#| label: corpus_loading
 
 # Read the corpus
 gaiman_corpus <- readRDS(here("corpora", "gaiman_corpus_complete.rds"))
@@ -44,6 +50,7 @@ To accelerate the calculation and analysis, some basic statistical features are 
 ### Exploratory Statistical Analysis
 
 ```{r}
+#| label: exploratory_analysis
 # Extract book-level metadata
 book_metadata <- gaiman_corpus$metadata$book_level
 
@@ -71,6 +78,7 @@ print(corpus_summary)
 First, we check lexical diversity
 
 ```{r}
+#| label: ttr_visualisation
 # Lexical diversity is already stored in the corpus, so we just need to visulaise it 
 lex_div_plot <- ggplot(book_metadata, 
                       aes(x = reorder(book_id, lexical_diversity), 
@@ -106,6 +114,7 @@ It might be counter-intuitive to see that the shortest, very children-oriented p
 Moving on, we check the distribution of word length
 
 ```{r}
+#| label: word_length_cal
 # Calculate word length for all tokens
 token_length <- gaiman_corpus$token_level |> 
   # Calculate character length of each token 
@@ -132,6 +141,7 @@ print(word_lengh_stats)
 We can visualise the results
 
 ```{r}
+#| label: word_length_vis
 word_lengh_dist <- token_length |> 
   # Count occurrences of each word length in each book 
   count(book_id, word_length) |> 
@@ -166,6 +176,7 @@ As the chart shows, Gaiman's writing shows a consistent pattern across his works
 We first remove common stopwords before checking the word frequency
 
 ```{r}
+#| label: word_frequnecy
 vocabulary <- gaiman_corpus$vocabulary
 stopwords = stopwords(language = "en")
 
@@ -198,6 +209,7 @@ We will use the package `quanteda` for most lexical analysis
 First, we will prepare quanteda corpora for analysis:
 
 ```{r}
+#| label: quanteda_loading
 # Create a corpus from the document level data
 quanteda_corpus <- corpus(
   gaiman_corpus$document_level$text,
@@ -224,6 +236,7 @@ docvars(quanteda_corpus, "chapter_num") <- gaiman_corpus$document_level$chapter_
 We use log-off to calculate keywords of the ten books
 
 ```{r}
+#| label: log_off_cal
 # Log odds function to compare one book against all others
 # This identifies distinctive words in each book compared to other books
 calculate_log_odds <- function(dfm_obj, target_book) {
@@ -293,7 +306,8 @@ keywords_df <- bind_rows(all_keywords)
 We can visualise the results:
 
 ```{r}
-# Visualize top 5 keywords for each book
+#| label: log_off_vis
+# Visualize top 10 keywords for each book
 top_keywords_plot <- keywords_df %>%
   group_by(book_id) %>%
   slice_head(n = 10) %>%
@@ -322,19 +336,17 @@ print(top_keywords_plot)
 #### 1. Syntactic Structures
 
 -   Sentence length variation
--   Syntactic complexity
-    -   Universal Dependency
-        -   consider calculating the numbers – is it possible?
-        
-        
+
 ```{r}
-#| label: sentiment anlaysis prepare
+#| label: sent_loading
+
 # Prepare sentence data
 sentence_data <- gaiman_corpus$sentence_level %>%
   select(book_id, title, chapter_num, sentence_id, text)
 ```
 
 ```{r}
+#| label: sentent_length_dist_vis
 # Calculate sentence length statistics
 sentence_length_stats <- sentence_data %>%
   # Add sentence length in words
@@ -373,17 +385,188 @@ sentence_length_vis <- sentence_data %>%
 print(sentence_length_vis)
 ```
 
-#### 2. Sentiment Analysis
+-   syntactic complexity
 
--   Maybe check the sentiment variation by chapter
-
-    -   consider visualise the ups and downs
-        -   but how to solve the inconsistent chapter length? Some books have much more chapters
-
-
+Mean Dependency Length Analysis: the average distance between words and their syntactic heads
 
 ```{r}
-#| label: sentiment analysis
+#| label: ud_cal
+
+
+# 1. Function to calculate mean dependency length for parsed text
+calculate_mean_dep_length <- function(parsed_data) {
+  # For each sentence, calculate dependency lengths
+  parsed_data %>%
+    # Filter out root nodes and punctuation
+    filter(head_token_id != 0, upos != "PUNCT") %>%
+    # Calculate absolute distance between each word and its head
+    mutate(
+      # Convert IDs to numeric and calculate distance
+      token_id_num = as.numeric(token_id),
+      head_id_num = as.numeric(head_token_id),
+      # Absolute difference is the dependency length
+      dep_length = abs(token_id_num - head_id_num)
+    ) %>%
+    # Calculate mean dependency length
+    summarize(
+      mean_dep_length = mean(dep_length, na.rm = TRUE),
+      median_dep_length = median(dep_length, na.rm = TRUE),
+      max_dep_length = max(dep_length, na.rm = TRUE),
+      deps_analyzed = n(),
+      .groups = "drop"
+    )
+}
+
+# 2. Process a sample of text from each book to calculate dependency lengths
+# This avoids processing the entire corpus which could be time-consuming
+set.seed(42) # For reproducibility in sampling
+sample_size <- 100 # Sample 100 sentences per book for analysis
+
+# Get sample sentences from each book - FIXED version
+sampled_sentences <- sentence_data %>%
+  # Split by book_id
+  group_by(book_id) %>%
+  # Use group_modify to properly access group size
+  group_modify(~{
+    # Get the minimum of sample_size or actual group size
+    sample_size_to_use <- min(sample_size, nrow(.x))
+    # Sample that many rows
+    slice_sample(.x, n = sample_size_to_use)
+  }) %>%
+  ungroup()
+
+# Create a unique identifier for each sampled sentence
+sampled_sentences <- sampled_sentences %>%
+  mutate(sample_id = paste0(book_id, "_", row_number()))
+
+# Initialize dependency parsing model
+# Note: This requires downloading a model - this block shows expected code flow
+dep_model <- udpipe_download_model(language = "english-ewt", model_dir = getwd())
+ud_model <- udpipe_load_model(dep_model$file_model)
+
+# Process the sample sentences with udpipe for dependency parsing
+# Using the sample_id as doc_id to maintain uniqueness
+parsed_samples <- udpipe(
+  x = sampled_sentences$text, 
+  object = ud_model,
+  doc_id = sampled_sentences$sample_id,  # Use our unique sample_id
+  parallel.cores = 1
+)
+
+# Create a mapping between sample_id and book_id
+sample_book_mapping <- sampled_sentences %>%
+  select(sample_id, book_id, title) %>%
+  distinct()
+
+# 3. Calculate mean dependency length for each sentence, then aggregate by book
+sentence_dependency_stats <- parsed_samples %>%
+  # Group by doc_id (which is our sample_id)
+  group_by(doc_id) %>%
+  # Calculate dependency stats for each sentence
+  group_modify(~calculate_mean_dep_length(.x))
+
+# Join with our mapping to get book information
+book_dependency_stats <- sentence_dependency_stats %>%
+  # Join with mapping to get book_id
+  left_join(sample_book_mapping, by = c("doc_id" = "sample_id")) %>%
+  # Group by book to aggregate sentence-level stats
+  group_by(book_id, title) %>%
+  # Calculate book-level averages
+  summarize(
+    mean_dep_length = mean(mean_dep_length, na.rm = TRUE),
+    median_dep_length = mean(median_dep_length, na.rm = TRUE),
+    max_dep_length = max(max_dep_length, na.rm = TRUE),
+    sentences_analyzed = n(),
+    .groups = "drop"
+  )
+
+```
+
+```{r}
+#| label: ud_vis
+
+# 4. Create visualization of mean dependency length
+dep_length_plot <- ggplot(book_dependency_stats,
+  # Sort by mean dependency length
+  aes(x = reorder(book_id, mean_dep_length),
+      y = mean_dep_length)) +
+  geom_col(fill = "#5D93E1") +
+  # Add error bars showing variability
+  geom_errorbar(
+    aes(ymin = mean_dep_length - median_dep_length/4, 
+        ymax = mean_dep_length + median_dep_length/4),
+    width = 0.2, color = "#2C528C"
+  ) +
+  labs(
+    title = "Syntactic Complexity in Gaiman's Works",
+    subtitle = "Mean dependency length (average distance between related words)",
+    x = "Book",
+    y = "Mean Dependency Length"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.minor = element_blank()
+  )
+
+# 5. Find illustrative examples of short and long dependencies
+# We'll find examples from the original parsed sentences
+parsed_with_dep_length <- parsed_samples %>%
+  # Calculate dependency length for each token
+  mutate(
+    token_id_num = as.numeric(token_id),
+    head_id_num = as.numeric(head_token_id),
+    dep_length = abs(token_id_num - head_id_num)
+  )
+
+# Aggregate to get max dependency length in each sentence
+sentence_max_deps <- parsed_with_dep_length %>%
+  group_by(doc_id, sentence_id) %>%
+  summarize(
+    max_dep = max(dep_length[upos != "PUNCT" & head_token_id != "0"], na.rm = TRUE),
+    sentence_text = first(sentence),
+    .groups = "drop"
+  ) %>%
+  # Remove potential NA/Inf values from empty sentences
+  filter(is.finite(max_dep))
+
+# Find better examples
+short_example <- sentence_max_deps %>%
+  filter(max_dep > 1 & max_dep <= 3) %>%  # Not too trivial, but still simple
+  filter(nchar(sentence_text) > 10) %>%    # Ensure it's a real sentence
+  arrange(max_dep) %>%
+  slice(1)
+
+long_example <- sentence_max_deps %>%
+  filter(max_dep >= 7) %>%                # Clearly complex
+  arrange(desc(max_dep)) %>%
+  slice(1)
+
+# Join with book information for examples
+example_sentences <- bind_rows(
+  short_example %>% mutate(type = "Short dependency"),
+  long_example %>% mutate(type = "Long dependency")
+) %>%
+  left_join(sample_book_mapping, by = c("doc_id" = "sample_id"))
+
+# Print results
+print(dep_length_plot)
+
+# Print example sentences with book sources
+cat("\nExample sentences illustrating dependency length:\n\n")
+
+for(i in 1:nrow(example_sentences)) {
+  cat(paste0(example_sentences$type[i], " (max = ", 
+             round(example_sentences$max_dep[i], 1), 
+             ") from ", example_sentences$title[i], ":\n"))
+  cat(example_sentences$sentence_text[i], "\n\n")
+}
+```
+
+#### . Sentiment Analysis
+
+```{r}
+#| label: senti_ana_cal
 
 
 # Calculate sentiment at sentence level using sentiment_by()
@@ -412,109 +595,238 @@ book_sentiment <- sentence_sentiment %>%
     neutral_pct = mean(ave_sentiment == 0, na.rm = TRUE) * 100
   ) %>%
   arrange(desc(ave_sentiment))
+```
 
-# Visualize average sentiment by book
-sentiment_plot <- ggplot(book_sentiment, 
-                        aes(x = reorder(book_id, ave_sentiment), 
-                            y = ave_sentiment)) +
-  geom_col(fill = "skyblue") +
-  geom_errorbar(aes(ymin = ave_sentiment - sd, 
-                   ymax = ave_sentiment + sd),
-               width = 0.2) +
-  labs(
-    title = "Average Sentiment by Book",
-    subtitle = "Error bars represent standard deviation",
-    x = "Book",
-    y = "Average Sentiment Score"
-  ) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```{r}
+#| label: senti_ana_vis
 
-print(sentiment_plot)
 
-# Visualize sentiment distribution by book
-sentiment_dist_plot <- ggplot(sentence_sentiment, 
-                             aes(x = ave_sentiment, fill = book_id)) +
-  geom_density(alpha = 0.7) +
-  facet_wrap(~book_id) +
-  labs(
-    title = "Sentiment Distribution by Book",
-    x = "Sentiment Score",
-    y = "Density"
-  ) +
-  theme_minimal() +
-  theme(legend.position = "none")
-
-print(sentiment_dist_plot)
-
-# Plot sentiment polarity distribution (positive/negative/neutral)
+# Improved sentiment polarity visualization
+# ---------------------------------------
+# Prepare the data: transform from wide to long format for ggplot
 sentiment_polarity <- book_sentiment %>%
+  # Select only the needed columns
   select(book_id, positive_pct, negative_pct, neutral_pct) %>%
+  # Convert to long format for easier plotting
   pivot_longer(
     cols = c(positive_pct, negative_pct, neutral_pct),
     names_to = "polarity",
     values_to = "percentage"
   ) %>%
+  # Clean up the category names by removing the _pct suffix
   mutate(
     polarity = case_when(
       polarity == "positive_pct" ~ "Positive",
       polarity == "negative_pct" ~ "Negative",
       polarity == "neutral_pct" ~ "Neutral"
-    )
+    ),
+    # Order books by their positive sentiment percentage for clearer comparison
+    book_id = factor(book_id, 
+                    levels = book_sentiment$book_id[order(book_sentiment$positive_pct)])
   )
 
-polarity_plot <- ggplot(sentiment_polarity, 
+# Create the polarity distribution plot
+polarity_plot <- ggplot(sentiment_polarity,
                        aes(x = book_id, y = percentage, fill = polarity)) +
-  geom_bar(stat = "identity", position = "dodge") +
+  # Use position_dodge to place bars side by side
+  geom_bar(stat = "identity", position = "dodge", width = 0.7) +
+  # Apply a color palette suitable for sentiment categories
+  scale_fill_manual(values = c("Positive" = "#4CAF50", 
+                               "Negative" = "#F44336", 
+                               "Neutral" = "#9E9E9E")) +
+  # Add clear labels
   labs(
-    title = "Sentiment Polarity by Book",
-    subtitle = "Percentage of positive, negative, and neutral sentences",
+    title = "Distribution of Emotional Content in Gaiman's Works",
+    subtitle = "Percentage of positive, negative, and neutral sentences in each book",
     x = "Book",
     y = "Percentage of Sentences",
-    fill = "Sentiment Polarity"
+    fill = "Emotional Tone"
   ) +
+  # Improve readability
   theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-print(polarity_plot)
-
-# Optional: Look at sentiment flow through chapters for a specific book
-# This shows how sentiment changes throughout the narrative
-sentiment_flow <- sentence_sentiment %>%
-  filter(book_id == "AG") %>%  # Change to analyze different books
-  group_by(chapter_num) %>%
-  summarise(
-    chapter_sentiment = mean(ave_sentiment, na.rm = TRUE),
-    .groups = "drop"
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "top",
+    panel.grid.minor = element_blank()
   )
 
-flow_plot <- ggplot(sentiment_flow, aes(x = chapter_num, y = chapter_sentiment)) +
-  geom_line(group = 1, color = "blue", linewidth = 1) +
-  geom_point(size = 3, color = "darkblue") +
-  geom_smooth(se = FALSE, color = "red", linetype = "dashed") +
-  labs(
-    title = "Sentiment Flow Through American Gods",
-    subtitle = "Average sentiment by chapter",
-    x = "Chapter Number",
-    y = "Average Sentiment"
-  ) +
-  theme_minimal()
-
-print(flow_plot)
+print(polarity_plot)
 ```
+
+```{r}
+# 1. First check if ST and TGB exist in the original corpus
+book_presence <- gaiman_corpus$document_level %>%
+  group_by(book_id) %>%
+  summarise(
+    chapters = n_distinct(chapter_num),
+    total_text = sum(nchar(text))
+  )
+print(book_presence)
+
+# 2. Check for chapter structure issues
+chapter_structure <- gaiman_corpus$document_level %>%
+  filter(book_id %in% c("ST", "TGB")) %>%
+  group_by(book_id) %>%
+  summarise(
+    min_chapter = min(chapter_num),
+    max_chapter = max(chapter_num),
+    chapter_count = n_distinct(chapter_num),
+    sequential_chapters = max_chapter - min_chapter + 1 == chapter_count
+  )
+print(chapter_structure)
+
+# 3. Examine sentiment calculation at sentence level for these books
+sentiment_check <- sentence_sentiment %>%
+  filter(book_id %in% c("ST", "TGB")) %>%
+  group_by(book_id, chapter_num) %>%
+  summarise(
+    sentence_count = n(),
+    na_sentiment_count = sum(is.na(ave_sentiment)),
+    avg_sentiment = mean(ave_sentiment, na.rm = TRUE),
+    .groups = "drop"
+  )
+print(sentiment_check)
+
+# 4. Look for anomalies in the chapter aggregation
+problem_chapters <- normalized_sentiment_flow %>%
+  filter(book_id %in% c("ST", "TGB")) %>%
+  select(book_id, chapter_num, chapter_sentiment, narrative_position, sentiment_z) %>%
+  arrange(book_id, chapter_num)
+print(problem_chapters)
+```
+
+```{r}
+# Normalized Sentiment Flow Analysis
+# ---------------------------------------
+# This function creates a normalized sentiment flow chart for all books
+# showing how sentiment changes throughout the narrative progression
+
+# 1. Calculate normalized chapter positions and sentiment scores for all books
+normalized_sentiment_flow <- sentence_sentiment %>%
+  # Group by book and chapter to get average sentiment per chapter
+  group_by(book_id, chapter_num) %>%
+  summarise(
+    chapter_sentiment = mean(ave_sentiment, na.rm = TRUE),
+    samples = n(),  # Track number of sentences for potential weighting
+    .groups = "drop"
+  ) %>%
+  # For each book, calculate normalized position (0-100%)
+  group_by(book_id) %>%
+  mutate(
+    # Get the max chapter number for each book
+    max_chapter = max(chapter_num),
+    # Calculate normalized position (0-100% of narrative)
+    narrative_position = (chapter_num / max_chapter) * 100,
+    # Calculate z-scores for better cross-book comparison
+    sentiment_z = scale(chapter_sentiment)[,1]
+  ) %>%
+  # Get book titles for better labeling
+  left_join(
+    distinct(sentence_sentiment[, c("book_id", "title")]),
+    by = "book_id"
+  )
+
+# Fix missing data for ST and TGB
+# First check what's happening with these books' data
+missing_books_data <- normalized_sentiment_flow %>%
+  filter(book_id %in% c("ST", "TGB")) %>%
+  summarise(
+    total_rows = n(),
+    na_count = sum(is.na(chapter_sentiment)),
+    zero_count = sum(chapter_sentiment == 0, na.rm = TRUE),
+    min_val = min(chapter_sentiment, na.rm = TRUE),
+    max_val = max(chapter_sentiment, na.rm = TRUE)
+  )
+print(missing_books_data)
+
+# Fix 1: Replace NA values with 0 (if that's the issue)
+normalized_sentiment_flow <- normalized_sentiment_flow %>%
+  mutate(chapter_sentiment = ifelse(is.na(chapter_sentiment), 0, chapter_sentiment))
+
+# 2. Create the normalized sentiment flow visualization for all books
+narrative_flow_plot <- ggplot(normalized_sentiment_flow, 
+                             aes(x = narrative_position, 
+                                 y = chapter_sentiment, 
+                                 color = book_id)) +
+  # Add smoothed trend lines to see the emotional arc
+  geom_smooth(se = FALSE, span = 0.5, size = 1) +
+  # Add small points for actual chapter sentiments
+  geom_point(alpha = 0.4, size = 1.5) +
+  # Facet by book for easier comparison, use a small multiple approach
+  facet_wrap(~ title, scales = "free_y") +
+  # Add clear labels
+  labs(
+    title = "Emotional Arcs in Neil Gaiman's Works",
+    subtitle = "Sentiment progression throughout narrative (0% = beginning, 100% = end)",
+    x = "Narrative Progression (%)",
+    y = "Sentiment Score",
+    color = "Book"
+  ) +
+  # Use a subdued color scheme that works for multiple lines
+  scale_color_brewer(palette = "Set2") +
+  # Remove legend since we're using facets
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    panel.spacing = unit(1, "lines"),
+    strip.text = element_text(face = "bold"),
+    panel.grid.minor = element_blank()
+  )
+
+# 3. Create a single-panel version showing all books for direct comparison
+combined_flow_plot <- ggplot(normalized_sentiment_flow, 
+                            aes(x = narrative_position, 
+                                y = chapter_sentiment, 
+                                color = book_id)) +
+  # Add smoothed trend lines
+  geom_smooth(se = FALSE, span = 0.5, size = 1.2) +
+  # Add book-specific endpoints to see where each narrative concludes
+  geom_point(data = normalized_sentiment_flow %>% 
+               group_by(book_id) %>% 
+               filter(narrative_position == max(narrative_position)),
+             size = 3, shape = 18) +
+  # Add clear labels
+  labs(
+    title = "Comparing Emotional Arcs Across Gaiman's Works",
+    subtitle = "How sentiment evolves from beginning (0%) to end (100%) of each book",
+    x = "Narrative Progression (%)",
+    y = "Average Sentiment Score",
+    color = "Book"
+  ) +
+  # Add a horizontal reference line at neutral sentiment (0)
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray50", size = 0.5) +
+  # Use a color palette that distinguishes between books
+  scale_color_brewer(palette = "Paired") +
+  theme_minimal() +
+  theme(
+    legend.position = "right",
+    panel.grid.minor = element_blank()
+  )
+
+# Print both visualization options
+print(narrative_flow_plot)
+print(combined_flow_plot)
+
+```
+
+-   
 
 -   Prohibitive Expressions Analysis
 
     -   Use profanity() and profanity_by() functions provided by sentimentR
 
 ```{r}
-# Calculate profanity metrics
+# Enhanced Prohibitive Expression Analysis
+# ---------------------------------------
+# Define intensity-based categories for better differentiation between age-targeted works
+
+# 1. First get the basic profanity metrics using sentimentr
 profanity_results <- profanity_by(
   text.var = sentence_data$text,
   by = sentence_data$book_id
 )
 
-# Create readable profanity summary
+# 2. Create a baseline profanity summary with percentages
 profanity_summary <- profanity_results %>%
   arrange(desc(ave_profanity)) %>%
   mutate(
@@ -523,13 +835,92 @@ profanity_summary <- profanity_results %>%
     profanity_rate = sprintf("%.2f%%", profanity_percentage)
   )
 
-# Visualize profanity by book
-profanity_plot <- ggplot(profanity_summary, 
-                        aes(x = reorder(book_id, ave_profanity), 
-                            y = ave_profanity * 100)) +
+# 3. Enhanced categorization: Break down by profanity intensity levels
+# Create a function to categorize profanity by intensity
+categorize_profanity <- function(text) {
+  # Define intensity categories based on common usage patterns
+  mild_terms <- c("damn", "hell", "god", "crap", "suck", "idiot", "stupid")
+  moderate_terms <- c("ass", "bitch", "bastard", "shit", "cock", "dick", "piss")
+  strong_terms <- c("fuck", "cunt", "motherfuck", "whore", "slut")
+  
+  # Count occurrences of each category
+  mild_count <- sum(sapply(mild_terms, function(term) str_count(tolower(text), term)))
+  moderate_count <- sum(sapply(moderate_terms, function(term) str_count(tolower(text), term)))
+  strong_count <- sum(sapply(strong_terms, function(term) str_count(tolower(text), term)))
+  
+  # Return counts by category
+  return(c(mild = mild_count, moderate = moderate_count, strong = strong_count))
+}
+
+# Apply categorization to each book
+book_texts <- sentence_data %>%
+  group_by(book_id) %>%
+  summarise(text = paste(text, collapse = " ")) %>%
+  ungroup()
+
+# Get categorized counts for each book
+profanity_categories <- t(sapply(book_texts$text, categorize_profanity))
+profanity_categories <- as.data.frame(profanity_categories)
+profanity_categories$book_id <- book_texts$book_id
+
+# 4. Join with profanity summary and normalize by total words
+profanity_enhanced <- profanity_categories %>%
+  left_join(profanity_summary, by = "book_id") %>%
+  mutate(
+    # Calculate words per thousand to normalize counts
+    mild_per_k = (mild / word_count) * 1000,
+    moderate_per_k = (moderate / word_count) * 1000,
+    strong_per_k = (strong / word_count) * 1000
+  )
+
+# 5. Convert to long format for visualization
+profanity_long <- profanity_enhanced %>%
+  select(book_id, mild_per_k, moderate_per_k, strong_per_k) %>%
+  pivot_longer(
+    cols = c(mild_per_k, moderate_per_k, strong_per_k),
+    names_to = "intensity",
+    values_to = "frequency_per_k"
+  ) %>%
+  # Clean up category names
+  mutate(
+    intensity = factor(case_when(
+      intensity == "mild_per_k" ~ "Mild",
+      intensity == "moderate_per_k" ~ "Moderate",
+      intensity == "strong_per_k" ~ "Strong"
+    ), levels = c("Mild", "Moderate", "Strong"))
+  )
+
+# 6. Create enhanced visualization with intensity breakdown
+profanity_categories_plot <- ggplot(profanity_long,
+  # Order books by total profanity rate
+  aes(x = reorder(book_id, frequency_per_k, sum), 
+      y = frequency_per_k, 
+      fill = intensity)) +
+  geom_col(position = "stack") +
+  # Color palette reflecting intensity
+  scale_fill_manual(values = c("Mild" = "#FFC107", 
+                              "Moderate" = "#FF9800", 
+                              "Strong" = "#F44336")) +
+  labs(
+    title = "Prohibitive Language by Intensity Across Gaiman's Works",
+    subtitle = "Words per 1,000 categorized by severity level",
+    x = "Book",
+    y = "Frequency (per 1,000 words)",
+    fill = "Intensity Level"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "top"
+  )
+
+# 7. Create basic profanity plot as well (optional)
+profanity_basic_plot <- ggplot(profanity_summary,
+  aes(x = reorder(book_id, ave_profanity),
+      y = ave_profanity * 100)) +
   geom_col(fill = "coral") +
   labs(
-    title = "Profanity Rate by Book",
+    title = "Overall Profanity Rate by Book",
     subtitle = "Percentage of words identified as profane",
     x = "Book",
     y = "Profanity Rate (%)"
@@ -537,77 +928,266 @@ profanity_plot <- ggplot(profanity_summary,
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-print(profanity_plot)
+# Display the enhanced visualization
+print(profanity_categories_plot)
+```
+
+**swear analysis with examples**
+
+```{r}
+# Enhanced Prohibitive Expression Analysis with Examples
+# ---------------------------------------
+
+# 1. First get the basic profanity metrics using sentimentr
+profanity_results <- profanity_by(
+  text.var = sentence_data$text,
+  by = sentence_data$book_id
+)
+
+# 2. Create baseline profanity summary
+profanity_summary <- profanity_results %>%
+  arrange(desc(ave_profanity)) %>%
+  mutate(
+    profanity_percentage = ave_profanity * 100,
+    profanity_rate = sprintf("%.2f%%", profanity_percentage)
+  )
+
+# 3. Define intensity-based categories
+mild_terms <- c("damn", "hell", "god", "crap", "suck", "idiot", "stupid")
+moderate_terms <- c("ass","arse", "bitch", "whole","bastard", "shit", "piss")
+strong_terms <- c("fuck", "cunt", "whore", "cock", "dick", "pussy")
+
+# 4. Function to extract examples without excessive display
+extract_profanity_examples <- function(text, category_terms, max_examples = 3) {
+  # Convert text to lowercase for matching
+  text_lower <- tolower(text)
+  
+  # Find all instances of each term
+  examples <- list()
+  for(term in category_terms) {
+    # Find positions of matches
+    matches <- gregexpr(paste0("\\b", term, "\\b"), text_lower)
+    
+    # If found, extract short context
+    if(matches[[1]][1] > 0) {
+      for(pos in matches[[1]]) {
+        # Get a window of context (30 chars before, 30 after)
+        start <- max(1, pos - 30)
+        end <- min(nchar(text_lower), pos + nchar(term) + 30)
+        
+        # Extract context
+        context <- substr(text_lower, start, end)
+        
+        # Highlight the term itself 
+        context <- gsub(paste0("\\b", term, "\\b"), paste0("**", term, "**"), context, ignore.case = TRUE)
+        
+        # Add to examples
+        examples <- c(examples, context)
+        
+        # Limit number of examples
+        if(length(examples) >= max_examples) break
+      }
+    }
+    
+    # Limit number of examples
+    if(length(examples) >= max_examples) break
+  }
+  
+  # Return found examples or NA if none
+  if(length(examples) > 0) {
+    return(paste(unlist(examples), collapse = " | "))
+  } else {
+    return(NA)
+  }
+}
+
+# 5. Apply to each book for each category
+book_profanity_examples <- book_texts %>%
+  mutate(
+    # Extract examples for each category
+    mild_examples = sapply(text, extract_profanity_examples, 
+                          category_terms = mild_terms, max_examples = 2),
+    moderate_examples = sapply(text, extract_profanity_examples, 
+                              category_terms = moderate_terms, max_examples = 2),
+    strong_examples = sapply(text, extract_profanity_examples, 
+                            category_terms = strong_terms, max_examples = 2)
+  ) %>%
+  # Count instances of each category
+  mutate(
+    mild_count = sapply(text, function(t) {
+      sum(sapply(mild_terms, function(term) str_count(tolower(t), paste0("\\b", term, "\\b"))))
+    }),
+    moderate_count = sapply(text, function(t) {
+      sum(sapply(moderate_terms, function(term) str_count(tolower(t), paste0("\\b", term, "\\b"))))
+    }),
+    strong_count = sapply(text, function(t) {
+      sum(sapply(strong_terms, function(term) str_count(tolower(t), paste0("\\b", term, "\\b"))))
+    })
+  ) %>%
+  # Get book word counts
+  left_join(
+    profanity_summary %>% select(book_id, word_count),
+    by = "book_id"
+  ) %>%
+  # Calculate normalized rates
+  mutate(
+    mild_per_k = (mild_count / word_count) * 1000,
+    moderate_per_k = (moderate_count / word_count) * 1000,
+    strong_per_k = (strong_count / word_count) * 1000
+  ) %>%
+  # Select only needed columns
+  select(book_id, word_count, 
+         mild_count, mild_per_k, mild_examples,
+         moderate_count, moderate_per_k, moderate_examples,
+         strong_count, strong_per_k, strong_examples)
+
+# 6. Create visualization showing intensity breakdown
+profanity_long <- book_profanity_examples %>%
+  select(book_id, mild_per_k, moderate_per_k, strong_per_k) %>%
+  pivot_longer(
+    cols = c(mild_per_k, moderate_per_k, strong_per_k),
+    names_to = "intensity",
+    values_to = "frequency_per_k"
+  ) %>%
+  # Clean up category names
+  mutate(
+    intensity = factor(case_when(
+      intensity == "mild_per_k" ~ "Mild",
+      intensity == "moderate_per_k" ~ "Moderate",
+      intensity == "strong_per_k" ~ "Strong"
+    ), levels = c("Mild", "Moderate", "Strong"))
+  )
+
+# 7. Create enhanced visualization with intensity breakdown
+profanity_categories_plot <- ggplot(profanity_long,
+  # Order books by total profanity rate
+  aes(x = reorder(book_id, frequency_per_k, sum), 
+      y = frequency_per_k, 
+      fill = intensity)) +
+  geom_col(position = "stack") +
+  # Color palette reflecting intensity
+  scale_fill_manual(values = c("Mild" = "#FFC107", 
+                              "Moderate" = "#FF9800", 
+                              "Strong" = "#F44336")) +
+  labs(
+    title = "Prohibitive Language by Intensity Across Gaiman's Works",
+    subtitle = "Words per 1,000 categorized by severity level",
+    x = "Book",
+    y = "Frequency (per 1,000 words)",
+    fill = "Intensity Level"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "top"
+  )
+
+# 8. Create a compact examples table for the most representative books
+# Find books with highest usage in each category
+top_mild_book <- book_profanity_examples %>% 
+  filter(mild_count > 0) %>% 
+  arrange(desc(mild_per_k)) %>% 
+  slice(1) %>% 
+  pull(book_id)
+
+top_moderate_book <- book_profanity_examples %>% 
+  filter(moderate_count > 0) %>% 
+  arrange(desc(moderate_per_k)) %>% 
+  slice(1) %>% 
+  pull(book_id)
+
+top_strong_book <- book_profanity_examples %>% 
+  filter(strong_count > 0) %>% 
+  arrange(desc(strong_per_k)) %>% 
+  slice(1) %>% 
+  pull(book_id)
+
+# Create examples data frame (for text output, not visualization)
+prohibitive_examples <- data.frame(
+  Category = c("Mild", "Moderate", "Strong"),
+  `Example Terms` = c(
+    paste(sample(mild_terms, min(3, length(mild_terms))), collapse=", "),
+    paste(sample(moderate_terms, min(3, length(moderate_terms))), collapse=", "),
+    paste(sample(strong_terms, min(3, length(strong_terms))), collapse=", ")
+  ),
+  `Example Book` = c(top_mild_book, top_moderate_book, top_strong_book),
+  `Book Example` = c(
+    book_profanity_examples$mild_examples[book_profanity_examples$book_id == top_mild_book],
+    book_profanity_examples$moderate_examples[book_profanity_examples$book_id == top_moderate_book],
+    book_profanity_examples$strong_examples[book_profanity_examples$book_id == top_strong_book]
+  )
+)
+
+# 9. Display the visualization and example table summary
+print(profanity_categories_plot)
+print(prohibitive_examples)
 ```
 
 #### 3. Readability Measure
 
 ```{r}
-# Function to calculate readability scores for a piece of text
-calculate_readability <- function(texts, book_ids) {
-  require(quanteda.textstats)
-  
-  # Calculate readability scores
-  readability_scores <- textstat_readability(
-    texts,
-    measure = c("Flesch.Kincaid", "Flesch", "Dale.Chall")
-  )
-  
-  # Add book IDs
-  readability_scores$book_id <- book_ids
-  
-  return(readability_scores)
-}
+# Data-driven Readability Analysis
+# ---------------------------------------
+# Focus solely on Flesch-Kincaid Grade Level without imposing age categories
 
-# Prepare text for each book (combine all chapters)
+# 1. Calculate readability scores for each book
 book_texts <- gaiman_corpus$document_level %>%
   group_by(book_id) %>%
   summarise(text = paste(text, collapse = " ")) %>%
   ungroup()
 
-# Calculate readability scores
-readability_results <- calculate_readability(
+# 2. Use quanteda for readability calculations
+readability_scores <- textstat_readability(
   book_texts$text,
-  book_texts$book_id
+  measure = c("Flesch.Kincaid")  # Focus on just this measure
 )
+readability_scores$book_id <- book_texts$book_id
 
-# Visualize readability scores
-readability_long <- readability_results %>%
-  select(book_id, Flesch.Kincaid, Flesch, Dale.Chall) %>%
-  pivot_longer(
-    cols = c(Flesch.Kincaid, Flesch, Dale.Chall),
-    names_to = "measure",
-    values_to = "score"
+# 3. Join with book information
+readability_data <- readability_scores %>%
+  # Get book information (title only)
+  left_join(
+    gaiman_corpus$metadata$book_level %>% 
+      select(book_id, title), 
+    by = "book_id"
   )
 
-# Create a more descriptive measure label
-readability_long <- readability_long %>%
-  mutate(measure_label = case_when(
-    measure == "Flesch.Kincaid" ~ "Flesch-Kincaid Grade Level",
-    measure == "Flesch" ~ "Flesch Reading Ease",
-    measure == "Dale.Chall" ~ "Dale-Chall Readability",
-    TRUE ~ measure
-  ))
-
-# Plot readability scores
-readability_plot <- ggplot(readability_long, 
-                           aes(x = reorder(book_id, score), 
-                               y = score, 
-                               fill = measure_label)) +
-  geom_bar(stat = "identity", position = "dodge") +
-  facet_wrap(~measure_label, scales = "free_y") +
+# 4. Create a cleaner, data-driven visualization
+readability_plot <- ggplot(readability_data,
+  # Sort by Flesch-Kincaid score (reading difficulty)
+  aes(x = reorder(book_id, Flesch.Kincaid),
+      y = Flesch.Kincaid)) +
+  # Use a gradient color reflecting complexity, but not imposing categories
+  geom_col(aes(fill = Flesch.Kincaid)) +
+  scale_fill_gradient(low = "#E3F2FD", high = "#1565C0") +
+  # Add labeled reference lines for grade level interpretation
+  geom_hline(yintercept = c(5, 8, 12), linetype = "dashed", color = "gray60") +
+  annotate("text", x = 1, y = 5.2, label = "5th Grade", hjust = 0, size = 3, color = "gray40") +
+  annotate("text", x = 1, y = 8.2, label = "8th Grade", hjust = 0, size = 3, color = "gray40") +
+  annotate("text", x = 1, y = 12.2, label = "12th Grade", hjust = 0, size = 3, color = "gray40") +
   labs(
-    title = "Readability Scores by Book",
-    subtitle = "Higher Flesch scores = easier to read; lower grade levels = easier to read",
+    title = "Reading Difficulty of Gaiman's Works",
+    subtitle = "Flesch-Kincaid Grade Level (higher = more difficult reading)",
     x = "Book",
-    y = "Score"
+    y = "Reading Grade Level",
+    fill = "Grade Level"
   ) +
   theme_minimal() +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1),
-    legend.position = "none"
+    panel.grid.minor = element_blank(),
+    legend.position = "right"
   )
 
+# 5. Add book titles to the plot for clearer identification
+readability_plot <- readability_plot +
+  # Add book titles as text labels
+  geom_text(
+    aes(label = title, y = 0.5),
+    angle = 90, hjust = 0, size = 2.5, color = "white"
+  )
+
+# Display the visualization
 print(readability_plot)
 ```
 
@@ -707,85 +1287,270 @@ pov_plot <- ggplot(pov_long,
 print(pov_plot)
 ```
 
-#### 2. Modality
-
--   use simple modal verbs categories
+Perspective stable index
 
 ```{r}
+ # POV Stability Analysis (Window-based approach)
+# ---------------------------------------
 
-# Function to analyze modal verbs
-analyze_modals <- function(text) {
-  # Define modal verb categories
-  ability <- "\\b(can|could|be able to)\\b"
-  permission <- "\\b(may|might|can|could)\\b"
-  obligation <- "\\b(must|should|ought to|have to|has to|had to)\\b"
-  possibility <- "\\b(may|might|could|can)\\b"
-  certainty <- "\\b(will|shall|would|must)\\b"
-  
-  # Count matches (case insensitive)
-  ability_count <- str_count(tolower(text), ability)
-  permission_count <- str_count(tolower(text), permission)
-  obligation_count <- str_count(tolower(text), obligation)
-  possibility_count <- str_count(tolower(text), possibility)
-  certainty_count <- str_count(tolower(text), certainty)
-  
-  # Return counts
-  return(c(
-    ability = ability_count,
-    permission = permission_count,
-    obligation = obligation_count,
-    possibility = possibility_count,
-    certainty = certainty_count
-  ))
-}
+# First, check what columns are actually available in your token data
+# str(gaiman_corpus$token_level)
 
-# Apply to book texts
-modal_results <- book_texts %>%
-  rowwise() %>%
-  mutate(modal_data = list(analyze_modals(text))) %>%
-  ungroup() %>%
+# Adjust the analysis to work with your corpus structure
+pov_stability <- gaiman_corpus$token_level %>%
+  # Filter for pronoun tokens using token_lower instead of upos
+  filter(token_lower %in% c(
+    # First person
+    "i", "me", "my", "mine", "myself", "we", "us", "our", "ours", "ourselves",
+    # Second person
+    "you", "your", "yours", "yourself", "yourselves",
+    # Third person
+    "he", "him", "his", "himself", "she", "her", "hers", "herself",
+    "it", "its", "itself", "they", "them", "their", "theirs", "themselves"
+  )) %>%
+  # Add perspective classification
   mutate(
-    ability = map_dbl(modal_data, ~ .x["ability"]),
-    permission = map_dbl(modal_data, ~ .x["permission"]),
-    obligation = map_dbl(modal_data, ~ .x["obligation"]),
-    possibility = map_dbl(modal_data, ~ .x["possibility"]),
-    certainty = map_dbl(modal_data, ~ .x["certainty"]),
-    total_words = str_count(text, "\\S+"),
-    # Calculate percentages
-    ability_pct = ability / total_words * 100,
-    permission_pct = permission / total_words * 100,
-    obligation_pct = obligation / total_words * 100,
-    possibility_pct = possibility / total_words * 100,
-    certainty_pct = certainty / total_words * 100
+    perspective = case_when(
+      token_lower %in% c("i", "me", "my", "mine", "myself", "we", "us", "our", "ours", "ourselves") ~ "first",
+      token_lower %in% c("you", "your", "yours", "yourself", "yourselves") ~ "second",
+      TRUE ~ "third"
+    )
   ) %>%
-  select(-modal_data, -text)
-
-# Visualize modal verb usage
-modal_long <- modal_results %>%
-  select(book_id, contains("_pct")) %>%
-  pivot_longer(
-    cols = contains("_pct"),
-    names_to = "modal_type",
-    values_to = "percentage"
+  # Group by book and sentence
+  group_by(book_id, sentence_id) %>%
+  # Determine predominant perspective for each sentence
+  summarize(
+    perspective = case_when(
+      sum(perspective == "first") > 0 ~ "first",
+      sum(perspective == "second") > 0 ~ "second",
+      sum(perspective == "third") > 0 ~ "third",
+      TRUE ~ "none"  # Fallback (shouldn't happen given our filter)
+    ),
+    .groups = "drop"
   ) %>%
+  # Group sentences into windows to avoid name-pronoun alternation issues
+  group_by(book_id) %>%
   mutate(
-    modal_type = str_replace(modal_type, "_pct", "")
+    # Create perspective windows (groups of consecutive sentences)
+    window_id = ceiling(row_number() / 5)
+  ) %>%
+  # Get dominant perspective for each window
+  group_by(book_id, window_id) %>%
+  summarize(
+    dominant_perspective = names(which.max(table(perspective))),
+    .groups = "drop"
+  ) %>%
+  # Track shifts in dominant perspective
+  group_by(book_id) %>%
+  mutate(
+    prev_perspective = lag(dominant_perspective),
+    is_shift = dominant_perspective != prev_perspective & !is.na(prev_perspective)
+  ) %>%
+  # Calculate stability index and perspective composition
+  summarize(
+    windows = n(),
+    shifts = sum(is_shift, na.rm = TRUE),
+    stability_index = 1 - (shifts / (windows - 1)),  # Higher = more stable
+    pct_first = mean(dominant_perspective == "first", na.rm = TRUE) * 100,
+    pct_second = mean(dominant_perspective == "second", na.rm = TRUE) * 100,
+    pct_third = mean(dominant_perspective == "third", na.rm = TRUE) * 100,
+    .groups = "drop"
   )
 
-modal_plot <- ggplot(modal_long, 
-                    aes(x = book_id, y = percentage, fill = modal_type)) +
-  geom_bar(stat = "identity", position = "dodge") +
+# Get book titles for better visualization
+pov_stability <- pov_stability %>%
+  left_join(
+    gaiman_corpus$document_level %>% 
+      select(book_id, title) %>% 
+      distinct(),
+    by = "book_id"
+  )
+
+# Create perspective stability visualization
+stability_plot <- ggplot(pov_stability, 
+                        aes(x = reorder(book_id, stability_index),
+                            y = stability_index)) +
+  geom_col(fill = "#6D9EC1") +
+  geom_text(aes(label = sprintf("%.2f", stability_index)), 
+            vjust = -0.5, size = 3) +
   labs(
-    title = "Modal Verb Usage by Book",
-    subtitle = "Percentage of words by modal category",
+    title = "Narrative Perspective Stability in Gaiman's Works",
+    subtitle = "Higher values indicate more consistent perspective throughout the work",
     x = "Book",
-    y = "Percentage of Total Words",
-    fill = "Modal Category"
+    y = "Perspective Stability Index"
   ) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
+# Create perspective composition visualization
+composition_data <- pov_stability %>%
+  select(book_id, pct_first, pct_second, pct_third) %>%
+  pivot_longer(
+    cols = c(pct_first, pct_second, pct_third),
+    names_to = "perspective",
+    values_to = "percentage"
+  ) %>%
+  mutate(
+    perspective = case_when(
+      perspective == "pct_first" ~ "First Person",
+      perspective == "pct_second" ~ "Second Person",
+      perspective == "pct_third" ~ "Third Person"
+    )
+  )
+
+composition_plot <- ggplot(composition_data,
+                          aes(x = reorder(book_id, percentage, sum),
+                              y = percentage,
+                              fill = perspective)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = c("First Person" = "#E57373",
+                               "Second Person" = "#FFB74D",
+                               "Third Person" = "#81C784")) +
+  labs(
+    title = "Narrative Perspective Composition in Gaiman's Works",
+    subtitle = "Percentage of narrative told in each perspective",
+    x = "Book",
+    y = "Percentage",
+    fill = "Perspective"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Display both visualizations
+print(stability_plot)
+print(composition_plot)
+```
+
+#### 2. Modality
+
+-   use narrative function categorisation
+
+```{r}
+# Modal Verb Analysis by Narrative Function
+# ---------------------------------------
+
+# Prepare book texts - create if not already available
+book_texts <- gaiman_corpus$document_level %>%
+  group_by(book_id) %>%
+  summarise(text = paste(text, collapse = " ")) %>%
+  ungroup()
+
+# Corrected function to categorize modal verbs by narrative function
+analyze_modal_functions <- function(text) {
+  # Define patterns for modal categories
+  world_building_pattern <- "\\b(must|should|have to|has to|had to|always|never)\\b"
+  possibility_pattern <- "\\b(may|might|could|can|maybe|perhaps)\\b"
+  hypothetical_pattern <- "\\b(would|if|whether)\\b"
+  intent_pattern <- "\\b(will|shall|going to|want to)\\b"
+  
+  # Count matches for each category
+  world_count <- str_count(tolower(text), world_building_pattern)
+  possibility_count <- str_count(tolower(text), possibility_pattern)
+  hypothetical_count <- str_count(tolower(text), hypothetical_pattern)
+  intent_count <- str_count(tolower(text), intent_pattern)
+  
+  # Return named vector of counts
+  return(c(
+    world_building = world_count,
+    possibility = possibility_count,
+    hypothetical = hypothetical_count,
+    intent = intent_count
+  ))
+}
+
+# Apply function to each book
+modal_results <- book_texts %>%
+  rowwise() %>%
+  mutate(
+    # Apply the function to get modal counts
+    modal_counts = list(analyze_modal_functions(text)),
+    # Extract individual counts
+    world_building = modal_counts["world_building"],
+    possibility = modal_counts["possibility"],
+    hypothetical = modal_counts["hypothetical"],
+    intent = modal_counts["intent"],
+    # Get total word count for normalization
+    total_words = str_count(text, "\\S+"),
+    # Normalize per 1000 words
+    world_building_per_k = (world_building / total_words) * 1000,
+    possibility_per_k = (possibility / total_words) * 1000,
+    hypothetical_per_k = (hypothetical / total_words) * 1000,
+    intent_per_k = (intent / total_words) * 1000,
+    # Calculate authority ratio (world_building + intent vs. possibility + hypothetical)
+    authority_ratio = (world_building + intent) / (possibility + hypothetical)
+  ) %>%
+  # Select only needed columns
+  select(book_id, 
+         world_building, possibility, hypothetical, intent, 
+         world_building_per_k, possibility_per_k, hypothetical_per_k, intent_per_k,
+         authority_ratio)
+
+# Get book titles for visualization
+modal_results <- modal_results %>%
+  left_join(
+    gaiman_corpus$document_level %>% 
+      select(book_id, title) %>% 
+      distinct(),
+    by = "book_id"
+  )
+
+# Prepare data for visualization
+modal_long <- modal_results %>%
+  select(book_id, title, ends_with("_per_k")) %>%
+  pivot_longer(
+    cols = ends_with("_per_k"),
+    names_to = "modal_type",
+    values_to = "frequency_per_k"
+  ) %>%
+  # Clean up category names
+  mutate(
+    modal_type = case_when(
+      modal_type == "world_building_per_k" ~ "World Building",
+      modal_type == "possibility_per_k" ~ "Possibility",
+      modal_type == "hypothetical_per_k" ~ "Hypothetical",
+      modal_type == "intent_per_k" ~ "Intent"
+    )
+  )
+
+# Create improved modal verb usage visualization
+modal_plot <- ggplot(modal_long,
+                    aes(x = reorder(book_id, frequency_per_k, sum),
+                        y = frequency_per_k,
+                        fill = modal_type)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = c("World Building" = "#5C6BC0",
+                               "Possibility" = "#26A69A",
+                               "Hypothetical" = "#AB47BC",
+                               "Intent" = "#EF5350")) +
+  labs(
+    title = "Modal Verb Usage by Narrative Function",
+    subtitle = "Frequency per 1,000 words across Gaiman's works",
+    x = "Book",
+    y = "Frequency (per 1,000 words)",
+    fill = "Modal Function"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Authority ratio visualization
+authority_plot <- ggplot(modal_results,
+                        aes(x = reorder(book_id, authority_ratio),
+                            y = authority_ratio)) +
+  geom_col(fill = "#FF7043") +
+  geom_text(aes(label = sprintf("%.2f", authority_ratio)), 
+            vjust = -0.5, size = 3) +
+  labs(
+    title = "Narrative Voice Authority in Gaiman's Works",
+    subtitle = "Ratio of authoritative modals (world-building + intent) to uncertain modals (possibility + hypothetical)",
+    x = "Book",
+    y = "Authority Ratio"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Display visualizations
 print(modal_plot)
+print(authority_plot)
 ```
 
 #### 4. Combined Analysis
@@ -800,50 +1565,312 @@ Or if you have some better idea.
 #### 
 
 ```{r}
-# Combine all metrics into a single feature matrix
-feature_matrix <- book_metadata %>%
-  select(book_id, lexical_diversity) %>%
+
+
+# 1. Gather all relevant features into one dataset
+# ------------------------------------------------
+
+# Start with book-level metadata as base
+book_features <- gaiman_corpus$metadata$book_level %>%
+  select(book_id, title)
+
+# Add lexical features
+book_features <- book_features %>%
+  left_join(
+    book_metadata %>% 
+      select(book_id, lexical_diversity),
+    by = "book_id"
+  ) %>%
   # Add word length features
-  left_join(word_lengh_stats, by = "book_id") %>%
+  left_join(
+    word_lengh_stats %>% 
+      select(book_id, avg_length, short_word_pct, medium_word_pct, long_word_pct),
+    by = "book_id"
+  ) %>%
+  # Add sentence length features
+  left_join(
+    sentence_length_stats %>% 
+      select(book_id, avg_length, short_sent_pct, long_sent_pct),
+    by = "book_id",
+    suffix = c("_word", "_sentence")
+  ) %>%
+  # Add syntactic complexity
+  left_join(
+    book_dependency_stats %>% 
+      select(book_id, mean_dep_length),
+    by = "book_id"
+  ) %>%
   # Add readability scores
   left_join(
-    readability_results %>% select(book_id, Flesch.Kincaid, Flesch, Dale.Chall),
+    readability_data %>% 
+      select(book_id, Flesch.Kincaid),
     by = "book_id"
   ) %>%
-  # Add sentiment
+  # Add sentiment metrics
   left_join(
-    book_sentiment %>% select(book_id, ave_sentiment, sd),
+    book_sentiment %>% 
+      select(book_id, ave_sentiment, positive_pct, negative_pct),
     by = "book_id"
   ) %>%
-  # Add profanity
+  # Add profanity metrics (normalized per 1000 words)
   left_join(
-    profanity_summary %>% select(book_id, ave_profanity),
-    by = "book_id"
-  ) %>%
-  # Add sentence length
-  left_join(
-    sentence_length_stats %>% select(book_id, avg_length, sd_length),
+    profanity_enhanced %>% 
+      select(book_id, mild_per_k, moderate_per_k, strong_per_k),
     by = "book_id"
   ) %>%
   # Add POV metrics
   left_join(
-    pov_results %>% select(book_id, first_pct, second_pct, third_pct),
+    pov_results %>% 
+      select(book_id, first_pct, second_pct, third_pct),
     by = "book_id"
   ) %>%
-  # Add modal metrics
+  # Add modal verb metrics
   left_join(
-    modal_results %>% select(book_id, contains("_pct")),
+    modal_results %>% 
+      select(book_id, world_building_per_k, possibility_per_k, hypothetical_per_k, intent_per_k, authority_ratio),
     by = "book_id"
   )
 
-# Add audience category (this needs to be defined based on your knowledge of the books)
-feature_matrix <- feature_matrix %>%
-  mutate(
-    target_audience = case_when(
-      book_id %in% c("FTM", "OFG", "CL", "TGB") ~ "Children",
-      book_id %in% c("ST", "OCEAN") ~ "Young Adult", 
-      book_id %in% c("AG", "AB", "NW", "SM") ~ "Adult",
-      TRUE ~ "Unknown"
-    )
+# 2. Clean and prepare features for PCA
+# -------------------------------------
+
+# Handle any missing values 
+book_features <- book_features %>%
+  # Replace NAs with mean values for each feature
+  mutate(across(where(is.numeric), ~ifelse(is.na(.), mean(., na.rm = TRUE), .)))
+
+# Scale features (important for PCA)
+pca_data <- book_features %>%
+  select(-book_id, -title) %>%  # Remove non-numeric columns
+  scale()
+
+# Add row names for the PCA plot
+rownames(pca_data) <- book_features$book_id
+
+# 3. Perform PCA
+# --------------
+
+# Conduct PCA
+pca_result <- prcomp(pca_data, center = TRUE, scale. = TRUE)
+
+# 4. Create enhanced visualization
+# --------------------------------
+
+# Add PCA coordinates to original book data
+pca_data_viz <- as_tibble(pca_result$x) %>%
+  bind_cols(book_features %>% select(book_id, title))
+
+# Calculate variance explained by each PC
+variance_explained <- pca_result$sdev^2 / sum(pca_result$sdev^2) * 100
+
+# Create PCA plot with ggplot2
+pca_plot <- ggplot(pca_data_viz, aes(x = PC1, y = PC2, label = book_id)) +
+  # Use a single color for points to avoid bias
+  geom_point(size = 4, color = "#5B9BD5", alpha = 0.7) +
+  geom_text_repel(
+    box.padding = 0.5,
+    point.padding = 0.3,
+    segment.color = "grey50",
+    force = 3
+  ) +
+  labs(
+    title = "Stylistic Features of Gaiman's Works",
+    subtitle = paste0("PC1 explains ", round(variance_explained[1], 1), 
+                      "% and PC2 explains ", round(variance_explained[2], 1), "% of variance"),
+    x = paste0("Principal Component 1 (", round(variance_explained[1], 1), "%)"),
+    y = paste0("Principal Component 2 (", round(variance_explained[2], 1), "%)")
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold"),
+    panel.grid.minor = element_blank()
   )
+
+# 5. Add feature contribution arrows
+# ----------------------------------
+
+# Extract loadings
+loadings <- pca_result$rotation
+
+# Calculate feature contributions to each PC
+feature_contrib <- data.frame(
+  feature = rownames(loadings),
+  PC1_loading = loadings[,1],
+  PC2_loading = loadings[,2],
+  PC1_contrib = loadings[,1]^2 / sum(loadings[,1]^2) * 100,
+  PC2_contrib = loadings[,2]^2 / sum(loadings[,2]^2) * 100,
+  total_contrib = (loadings[,1]^2 / sum(loadings[,1]^2) + 
+                    loadings[,2]^2 / sum(loadings[,2]^2)) * 50  # Average contribution
+)
+
+# Select top contributing features for clearer visualization
+top_features <- feature_contrib %>%
+  arrange(desc(total_contrib)) %>%
+  head(12) %>%
+  pull(feature)
+
+# Filter to top features
+top_loadings <- feature_contrib %>%
+  filter(feature %in% top_features)
+
+# Scale factor for arrows
+arrow_scale <- 5
+
+# Add arrows to the plot for top contributing features
+pca_plot_with_arrows <- pca_plot +
+  geom_segment(
+    data = top_loadings,
+    aes(x = 0, y = 0, 
+        xend = PC1_loading * arrow_scale, 
+        yend = PC2_loading * arrow_scale),
+    arrow = arrow(length = unit(0.3, "cm")),
+    color = "#E76F51",
+    linewidth = 0.7
+  ) +
+  geom_text_repel(
+    data = top_loadings,
+    aes(x = PC1_loading * arrow_scale * 1.1, 
+        y = PC2_loading * arrow_scale * 1.1, 
+        label = feature),
+    color = "#2A4D69",
+    size = 3.5,
+    fontface = "bold",
+    inherit.aes = FALSE
+  )
+
+# 6. Add interpretative annotations based on factor loadings
+# ---------------------------------------------------------
+
+# Identify primary directions of key features
+complexity_features <- c("Flesch.Kincaid", "mean_dep_length", "long_sent_pct", "long_word_pct")
+simplicity_features <- c("short_sent_pct", "short_word_pct")
+
+# Calculate average loading direction for complexity and simplicity
+complexity_direction <- feature_contrib %>%
+  filter(feature %in% complexity_features) %>%
+  summarise(
+    PC1_loading_avg = mean(PC1_loading),
+    PC2_loading_avg = mean(PC2_loading)
+  )
+
+simplicity_direction <- feature_contrib %>%
+  filter(feature %in% simplicity_features) %>%
+  summarise(
+    PC1_loading_avg = mean(PC1_loading),
+    PC2_loading_avg = mean(PC2_loading)
+  )
+
+# Add annotations based on these calculated directions
+pca_plot_final <- pca_plot_with_arrows +
+  # Only add directional annotation if there's a clear pattern
+  {
+    # Check if complexity is primarily associated with PC1
+    if(abs(complexity_direction$PC1_loading_avg) > abs(complexity_direction$PC2_loading_avg) * 1.5) {
+      if(complexity_direction$PC1_loading_avg > 0) {
+        annotate(
+          "text", 
+          x = max(pca_data_viz$PC1) * 0.85, 
+          y = 0, 
+          label = "→ Higher linguistic complexity", 
+          hjust = 1,
+          size = 3.5,
+          fontface = "italic",
+          color = "#2A4D69"
+        )
+      } else {
+        annotate(
+          "text", 
+          x = min(pca_data_viz$PC1) * 0.85, 
+          y = 0, 
+          label = "← Higher linguistic complexity", 
+          hjust = 0,
+          size = 3.5,
+          fontface = "italic",
+          color = "#2A4D69"
+        )
+      }
+    }
+  }
+
+# 7. Calculate potential clusters
+# ------------------------------
+
+# Perform k-means clustering with k=3 (but not used for coloring until interpretation)
+set.seed(123) # For reproducibility
+kmeans_result <- kmeans(pca_data_viz[, c("PC1", "PC2")], centers = 3, nstart = 25)
+
+# Add cluster information to the data (for reference only)
+pca_data_viz$cluster <- as.factor(kmeans_result$cluster)
+
+# Create a data frame mapping book_id to cluster
+book_clusters <- data.frame(
+  book_id = pca_data_viz$book_id,
+  cluster = pca_data_viz$cluster
+)
+
+# 8. Print key insights
+# --------------------
+
+# Top contributors to PC1
+cat("Top contributors to PC1 (potential complexity dimension):\n")
+print(feature_contrib %>% 
+        arrange(desc(abs(PC1_loading))) %>% 
+        head(8) %>% 
+        select(feature, PC1_loading, PC1_contrib))
+
+# Top contributors to PC2
+cat("\nTop contributors to PC2 (second dimension):\n")
+print(feature_contrib %>% 
+        arrange(desc(abs(PC2_loading))) %>% 
+        head(8) %>% 
+        select(feature, PC2_loading, PC2_contrib))
+
+# Show the cluster memberships (without labeling the clusters)
+cat("\nBooks grouped by similar linguistic features:\n")
+for(i in 1:length(unique(book_clusters$cluster))) {
+  cat(paste0("Group ", i, ": ", 
+            paste(book_clusters$book_id[book_clusters$cluster == i], collapse=", "), 
+            "\n"))
+}
+
+# Display the final PCA plot
+print(pca_plot_final)
+
+# 9. Create a heatmap visualization of feature correlations with PCs
+# -----------------------------------------------------------------
+
+# Get correlation of features with PCs
+feature_pc_correlation <- data.frame(
+  feature = rownames(loadings),
+  PC1 = loadings[,1],
+  PC2 = loadings[,2]
+) %>%
+  # Focus on top contributors
+  filter(feature %in% top_features) %>%
+  # Prepare for ggplot
+  pivot_longer(cols = c(PC1, PC2), 
+               names_to = "component", 
+               values_to = "correlation")
+
+# Create heatmap
+feature_heatmap <- ggplot(feature_pc_correlation, 
+                         aes(x = component, 
+                             y = reorder(feature, abs(correlation)), 
+                             fill = correlation)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "#4575B4", mid = "white", high = "#D73027", 
+                      midpoint = 0, limits = c(-1, 1)) +
+  labs(
+    title = "Feature Loadings on Principal Components",
+    x = "Principal Component", 
+    y = "Feature",
+    fill = "Correlation"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.y = element_text(hjust = 1),
+    panel.grid = element_blank()
+  )
+
+print(feature_heatmap)
 ```
