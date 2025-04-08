@@ -48,7 +48,7 @@ The corpus contains three levels of the texts: document-level (tokenised by chap
 \
 To accelerate the calculation and analysis, some basic statistical features are calculated beforehand and added to the corpus as the layers of Metadata and Vocabulary.
 
-## Literature Review 
+## Literature Review
 
 -   Previous corpus-based studies on stylistic variation in fiction
 
@@ -56,13 +56,15 @@ To accelerate the calculation and analysis, some basic statistical features are 
 
 -   Studies on Neil Gaiman's writing style (if available)
 
+-   Research aim: to find out if it is possible to differentiate the targeted audience demographics through a pure data-driven approach.
+
 -   **Drafted Research Questions**:
 
     1.  What linguistic features differentiate Gaiman's writing across audience demographics?
 
-## Methodology 
+## Methodology
 
-### Corpus 
+### Corpus
 
 -   **Data**: Description of the 10 books with their basic information (provide a table with titles, word counts, publication dates, and target audience)
 
@@ -72,9 +74,7 @@ To accelerate the calculation and analysis, some basic statistical features are 
 
 -   Preprocessing steps
 
-### Analysis 
-
-#### lexical level 
+Result reporting: the basic nature of the corpus
 
 ```{r}
 #| label: exploratory_analysis
@@ -96,7 +96,9 @@ corpus_summary <- book_metadata |>
 print(corpus_summary)
 ```
 
-It might be counter-intuitive to see that the shortest, very children-oriented painted book Fortunately, the Milk has the highest TTR, while the longer, adult-targeted books such as American Gods and Anasi Boys are the lowerest. However, it makes sense. Given that FTM is the shortest, the words are more likely to appear in fewer times, even only once, which increases the ratio of type. Being opposite to that, the long novels contain much more words of which many are common words. They water down TTR. This calls for more detailed and comprehensive stylistic analysis on multiple layers of the text.
+### Analysis
+
+#### lexical level
 
 ##### Word Length Distribution
 
@@ -130,7 +132,7 @@ word_lengh_stats <- token_length |>
 print(word_lengh_stats)
 ```
 
-As the chart shows, Gaiman's writing shows a consistent pattern across his works. Most words are at around 4 characters, which reflect the common pattern of English.
+As the chart shows, Gaiman's writing shows a consistent pattern across his works. Most words are at around 4 characters, which reflect the common pattern of English. The shorted appears in Ocean, while the longest in NW.
 
 We can visualise the results
 
@@ -194,6 +196,8 @@ lex_div_plot <- ggplot(book_metadata,
 print(lex_div_plot)
 
 ```
+
+Admit the limitation: TTR is sensitive to text length, and so simply using TTR cannot differentiate if a book is for children or adults, so we need more extensive and in-depth analysis.
 
 ```{r}
 #| label: word_frequnecy
@@ -338,7 +342,9 @@ top_keywords_plot <- keywords_df %>%
 print(top_keywords_plot)
 ```
 
-#### Sentence Level 
+Briefly explain this keyword results.
+
+#### Sentence Level
 
 ##### Sentence length analysis
 
@@ -389,6 +395,8 @@ sentence_length_vis <- sentence_data %>%
 
 print(sentence_length_vis)
 ```
+
+The result of sentence length distribution may of fewer analytical values, but builds the base for coming analysis. So, I put it at the beggning of this section.
 
 ##### Syntactic Complexity
 
@@ -568,6 +576,8 @@ for(i in 1:nrow(example_sentences)) {
 }
 ```
 
+This result is worthy of detailed report.
+
 ##### Readability Analysis
 
 ```{r}
@@ -636,6 +646,8 @@ readability_plot <- readability_plot +
 # Display the visualization
 print(readability_plot)
 ```
+
+first report the general pattern then focus on the specific ones. It may be interesting to connect it with UD results above.
 
 ##### Sentiment & Profanity Analysis
 
@@ -863,7 +875,7 @@ arc_statistics <- normalized_sentiment_flow %>%
 print(arc_statistics)
 ```
 
-2.  Profanity analysis \
+2.  Profanity analysis\
     I use dictionary based approach to detect the occurrence of different swear words in Gaiman's books.
 
 ```{r}
@@ -1148,8 +1160,7 @@ for (book in top_books) {
 }
 ```
 
-```{}
-```
+I am not sure about how to report this part. Sentiment and profanity analysis provide most intuitive results for differentiating age groups. But They rely on strong examples to be persuasive, which can be redundant and lengthy. So, the visualisations will be kept, but the structure and content of this part need to be carefully considered.
 
 #### Discourse level
 
@@ -1389,6 +1400,8 @@ composition_plot <- ggplot(composition_data,
 print(composition_plot)
 ```
 
+I am not sure if I should keep all three visualisations in the POV analysis section. I think the first and third ones are bit overlapped. Also, I don't know what should be the key observation to report in this part.
+
 ##### Modal verbs analysis
 
 ```{r}
@@ -1531,7 +1544,9 @@ authority_plot <- ggplot(modal_results,
 print(authority_plot)
 ```
 
-#### Integrated Analysis 
+The modal verb analysis has the similar problem with POV analysis. I think the first visulasation, the distribution of modal verb categories, is more about descriptive, while the narrative voice authority might be of more values.
+
+#### Integrated Analysis
 
 Consider use PCA to visualise the distribution of the ten books on the spectrum of children-adults.\
 Or if you have some better idea.
@@ -1594,24 +1609,72 @@ loadings <- gaiman_pca$rotation
 print(loadings[, 1:2])  # Loadings on first two components
 
 # Step 5: Create a clear, informative visualization
-# -----------------------------------------------------------------
-# Basic biplot of books and features
-pca_biplot <- fviz_pca_biplot(gaiman_pca,
-                    # Data points (books)
-                    repel = TRUE,  # Avoid text overlap
-                    label = "var",  # Show variable names
-                    col.var = "darkblue",  # Variable color
-                    col.ind = "darkred",   # Individual (book) color
-                    # Customization for clarity
-                    title = "PCA: Linguistic Features of Gaiman's Works",
-                    subtitle = "Books positioned by linguistic similarities",
-                    ggtheme = theme_minimal()) +
-  theme(
-    plot.title = element_text(face = "bold"),
-    legend.position = "bottom"
+book_scores <- as.data.frame(gaiman_pca$x)
+book_scores$book_id <- rownames(book_scores)
+
+# Join with book titles for clearer labeling
+book_scores <- book_scores %>%
+  left_join(
+    gaiman_corpus$document_level %>%
+      select(book_id, title) %>%
+      distinct(),
+    by = "book_id"
   )
 
-print(pca_biplot)
+# Extract feature loadings for arrows
+loadings_df <- as.data.frame(gaiman_pca$rotation[, 1:2])
+loadings_df$feature <- rownames(loadings_df)
+
+# Create the enhanced biplot
+pca_spectrum <- ggplot() +
+  # Add feature vectors as arrows
+  geom_segment(data = loadings_df,
+               aes(x = 0, y = 0, xend = PC1*5, yend = PC2*5),
+               arrow = arrow(length = unit(0.2, "cm")),
+               color = "darkblue", alpha = 0.7) +
+  # Add feature labels
+  geom_text_repel(data = loadings_df,
+                  aes(x = PC1*5.5, y = PC2*5.5, label = feature),
+                  size = 3, color = "darkblue") +
+  # Add book points
+  geom_point(data = book_scores, 
+             aes(x = PC1, y = PC2),
+             size = 3, color = "darkred") +
+  # Add book labels
+  geom_text_repel(data = book_scores,
+                  aes(x = PC1, y = PC2, label = book_id),
+                  size = 4, 
+                  box.padding = 0.5,
+                  point.padding = 0.3,
+                  force = 10) +
+  # Add interpretive annotations
+  annotate("text", x = max(book_scores$PC1)*0.85, y = 0, 
+           label = "More complex, mature language", 
+           color = "darkblue", fontface = "bold", hjust = 1) +
+  annotate("text", x = min(book_scores$PC1)*0.85, y = 0, 
+           label = "Simpler, child-accessible language", 
+           color = "darkblue", fontface = "bold", hjust = 0) +
+  # Add titles and axis labels with percentage of variance explained
+  labs(
+    title = "Linguistic Spectrum of Gaiman's Works",
+    subtitle = "Books positioned by linguistic similarities",
+    x = paste0("Linguistic Complexity (PC1: ", round(gaiman_pca$sdev[1]^2/sum(gaiman_pca$sdev^2)*100, 1), "%)"),
+    y = paste0("Narrative Perspective (PC2: ", round(gaiman_pca$sdev[2]^2/sum(gaiman_pca$sdev^2)*100, 1), "%)")
+  ) +
+  # Visual enhancements
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    axis.title = element_text(face = "italic"),
+    panel.grid.minor = element_blank()
+  ) +
+  # Add reference lines at origin
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray50", alpha = 0.7) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray50", alpha = 0.7)
+
+# Display the visualization
+print(pca_spectrum)
+
 
 # Step 6: Identify key differentiating features
 # -----------------------------------------------------------------
@@ -1627,9 +1690,10 @@ print(feature_contrib)
 
 ```
 
-### Discussion 
+The result of PCA, especially the spectrum, should be a highlight of analysis and even the whole report. It provides some counter-intuitive results but also nuanced features. So, this part should be more careful and critical when reporting. A good report should use PCA to connect and integrate the analysis all above and beyond. This would be a strong foundation for the following discussion and conclusion sections.
 
-### Conclusion 
+### Discussion
+
+### Conclusion
 
 ### Reference
-
