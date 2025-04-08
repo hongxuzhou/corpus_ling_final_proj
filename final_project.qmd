@@ -869,7 +869,6 @@ print(arc_statistics)
 ```{r}
 #| label: swear_analysis_calculation
 
-
 # 2. Define categorized profanity dictionaries
 # Expanded lists with more comprehensive coverage
 mild_profanity <- c(
@@ -1539,321 +1538,93 @@ Or if you have some better idea.
 
 ```{r}
 #| label: pca_feature_selection
-# 1. Gather all relevant features into one dataset
-# ------------------------------------------------
 
-# Start with book-level metadata as base
-book_features <- gaiman_corpus$metadata$book_level %>%
-  select(book_id, title)
+# PCA Analysis of Linguistic Features in Neil Gaiman's Works
+# Purpose: Data-driven exploration of stylistic patterns across books
 
-# Add lexical features
-book_features <- book_features %>%
-  left_join(
-    book_metadata %>% 
-      select(book_id, lexical_diversity),
-    by = "book_id"
-  ) %>%
-  # Add word length features
-  left_join(
-    word_lengh_stats %>% 
-      select(book_id, avg_length, short_word_pct, medium_word_pct, long_word_pct),
-    by = "book_id"
-  ) %>%
-  # Add sentence length features
-  left_join(
-    sentence_length_stats %>% 
-      select(book_id, avg_length, short_sent_pct, long_sent_pct),
-    by = "book_id",
-    suffix = c("_word", "_sentence")
-  ) %>%
-  # Add syntactic complexity
-  left_join(
-    book_dependency_stats %>% 
-      select(book_id, mean_dep_length),
-    by = "book_id"
-  ) %>%
-  # Add readability scores
-  left_join(
-    readability_data %>% 
-      select(book_id, Flesch.Kincaid),
-    by = "book_id"
-  ) %>%
-  # Add sentiment metrics
-  left_join(
-    book_sentiment %>% 
-      select(book_id, ave_sentiment, positive_pct, negative_pct),
-    by = "book_id"
-  ) %>%
-  # Add profanity metrics (normalized per 1000 words)
-  left_join(
-    profanity_enhanced %>% 
-      select(book_id, mild_per_k, moderate_per_k, strong_per_k),
-    by = "book_id"
-  ) %>%
-  # Add POV metrics
-  left_join(
-    pov_results %>% 
-      select(book_id, first_pct, second_pct, third_pct),
-    by = "book_id"
-  ) %>%
-  # Add modal verb metrics
-  left_join(
-    modal_results %>% 
-      select(book_id, world_building_per_k, possibility_per_k, hypothetical_per_k, intent_per_k, authority_ratio),
-    by = "book_id"
-  )
-```
 
-```{r}
-#| label: pca_and_clustering
-# 2. Clean and prepare features for PCA
-# -------------------------------------
+# Step 1: Compile the features matrix
+# -----------------------------------------------------------------
+# Extract key metrics from previous analyses into a single dataframe
+gaiman_features <- data.frame(
+  book_id = gaiman_corpus$metadata$book_level$book_id,
+  
+  # Lexical features
+  lexical_diversity = gaiman_corpus$metadata$book_level$lexical_diversity,
+  avg_word_length = word_lengh_stats$avg_length,
+  short_word_pct = word_lengh_stats$short_word_pct,
+  long_word_pct = word_lengh_stats$long_word_pct,
+  
+  # Sentence features
+  avg_sentence_length = sentence_length_stats$avg_length,
+  short_sent_pct = sentence_length_stats$short_sent_pct,
+  long_sent_pct = sentence_length_stats$long_sent_pct,
+  mean_dep_length = book_dependency_stats$mean_dep_length,
+  readability_score = readability_data$Flesch.Kincaid,
+  
+  # Sentiment and profanity
+  positive_sentiment = book_sentiment_distribution$positive_pct,
+  negative_sentiment = book_sentiment_distribution$negative_pct,
+  total_profanity = profanity_categories$total_per_1000,
+  strong_profanity = profanity_categories$strong_per_1000,
+  
+  # Discourse features
+  first_person_pct = pov_stability$pct_first,
+  third_person_pct = pov_stability$pct_third,
+  pov_stability = pov_stability$stability_index,
+  authority_ratio = modal_results$authority_ratio
+)
 
-# Handle any missing values 
-book_features <- book_features %>%
-  # Replace NAs with mean values for each feature
-  mutate(across(where(is.numeric), ~ifelse(is.na(.), mean(., na.rm = TRUE), .)))
+# Step 2: Set book_id as rownames and remove from data matrix
+row.names(gaiman_features) <- gaiman_features$book_id
+gaiman_features <- gaiman_features %>% select(-book_id)
 
-# Scale features (important for PCA)
-pca_data <- book_features %>%
-  select(-book_id, -title) %>%  # Remove non-numeric columns
-  scale()
+# Step 3: Run the PCA
+# -----------------------------------------------------------------
+# scale=TRUE ensures all features are standardized before PCA
+gaiman_pca <- prcomp(gaiman_features, scale = TRUE)
 
-# Add row names for the PCA plot
-rownames(pca_data) <- book_features$book_id
+# Step 4: Examine basic PCA results
+# -----------------------------------------------------------------
+# Variance explained by each principal component
+summary(gaiman_pca)
 
-# 3. Perform PCA
-# --------------
+# Extract the feature loadings on principal components
+loadings <- gaiman_pca$rotation
+print(loadings[, 1:2])  # Loadings on first two components
 
-# Conduct PCA
-pca_result <- prcomp(pca_data, center = TRUE, scale. = TRUE)
-
-# 4. Create enhanced visualization
-# --------------------------------
-
-# Add PCA coordinates to original book data
-pca_data_viz <- as_tibble(pca_result$x) %>%
-  bind_cols(book_features %>% select(book_id, title))
-
-# Calculate variance explained by each PC
-variance_explained <- pca_result$sdev^2 / sum(pca_result$sdev^2) * 100
-
-# Create PCA plot with ggplot2
-pca_plot <- ggplot(pca_data_viz, aes(x = PC1, y = PC2, label = book_id)) +
-  # Use a single color for points to avoid bias
-  geom_point(size = 4, color = "#5B9BD5", alpha = 0.7) +
-  geom_text_repel(
-    box.padding = 0.5,
-    point.padding = 0.3,
-    segment.color = "grey50",
-    force = 3
-  ) +
-  labs(
-    title = "Stylistic Features of Gaiman's Works",
-    subtitle = paste0("PC1 explains ", round(variance_explained[1], 1), 
-                      "% and PC2 explains ", round(variance_explained[2], 1), "% of variance"),
-    x = paste0("Principal Component 1 (", round(variance_explained[1], 1), "%)"),
-    y = paste0("Principal Component 2 (", round(variance_explained[2], 1), "%)")
-  ) +
-  theme_minimal() +
+# Step 5: Create a clear, informative visualization
+# -----------------------------------------------------------------
+# Basic biplot of books and features
+pca_biplot <- fviz_pca_biplot(gaiman_pca,
+                    # Data points (books)
+                    repel = TRUE,  # Avoid text overlap
+                    label = "var",  # Show variable names
+                    col.var = "darkblue",  # Variable color
+                    col.ind = "darkred",   # Individual (book) color
+                    # Customization for clarity
+                    title = "PCA: Linguistic Features of Gaiman's Works",
+                    subtitle = "Books positioned by linguistic similarities",
+                    ggtheme = theme_minimal()) +
   theme(
     plot.title = element_text(face = "bold"),
-    panel.grid.minor = element_blank()
+    legend.position = "bottom"
   )
 
-# 5. Add feature contribution arrows
-# ----------------------------------
+print(pca_biplot)
 
-# Extract loadings
-loadings <- pca_result$rotation
-
-# Calculate feature contributions to each PC
-feature_contrib <- data.frame(
-  feature = rownames(loadings),
-  PC1_loading = loadings[,1],
-  PC2_loading = loadings[,2],
-  PC1_contrib = loadings[,1]^2 / sum(loadings[,1]^2) * 100,
-  PC2_contrib = loadings[,2]^2 / sum(loadings[,2]^2) * 100,
-  total_contrib = (loadings[,1]^2 / sum(loadings[,1]^2) + 
-                    loadings[,2]^2 / sum(loadings[,2]^2)) * 50  # Average contribution
-)
-
-# Select top contributing features for clearer visualization
-top_features <- feature_contrib %>%
-  arrange(desc(total_contrib)) %>%
-  head(12) %>%
-  pull(feature)
-
-# Filter to top features
-top_loadings <- feature_contrib %>%
-  filter(feature %in% top_features)
-
-# Scale factor for arrows
-arrow_scale <- 5
-
-# Add arrows to the plot for top contributing features
-pca_plot_with_arrows <- pca_plot +
-  geom_segment(
-    data = top_loadings,
-    aes(x = 0, y = 0, 
-        xend = PC1_loading * arrow_scale, 
-        yend = PC2_loading * arrow_scale),
-    arrow = arrow(length = unit(0.3, "cm")),
-    color = "#E76F51",
-    linewidth = 0.7
-  ) +
-  geom_text_repel(
-    data = top_loadings,
-    aes(x = PC1_loading * arrow_scale * 1.1, 
-        y = PC2_loading * arrow_scale * 1.1, 
-        label = feature),
-    color = "#2A4D69",
-    size = 3.5,
-    fontface = "bold",
-    inherit.aes = FALSE
-  )
-
-# 6. Add interpretative annotations based on factor loadings
-# ---------------------------------------------------------
-
-# Identify primary directions of key features
-complexity_features <- c("Flesch.Kincaid", "mean_dep_length", "long_sent_pct", "long_word_pct")
-simplicity_features <- c("short_sent_pct", "short_word_pct")
-
-# Calculate average loading direction for complexity and simplicity
-complexity_direction <- feature_contrib %>%
-  filter(feature %in% complexity_features) %>%
-  summarise(
-    PC1_loading_avg = mean(PC1_loading),
-    PC2_loading_avg = mean(PC2_loading)
-  )
-
-simplicity_direction <- feature_contrib %>%
-  filter(feature %in% simplicity_features) %>%
-  summarise(
-    PC1_loading_avg = mean(PC1_loading),
-    PC2_loading_avg = mean(PC2_loading)
-  )
-
-# Add annotations based on these calculated directions
-pca_plot_final <- pca_plot_with_arrows +
-  # Only add directional annotation if there's a clear pattern
-  {
-    # Check if complexity is primarily associated with PC1
-    if(abs(complexity_direction$PC1_loading_avg) > abs(complexity_direction$PC2_loading_avg) * 1.5) {
-      if(complexity_direction$PC1_loading_avg > 0) {
-        annotate(
-          "text", 
-          x = max(pca_data_viz$PC1) * 0.85, 
-          y = 0, 
-          label = "→ Higher linguistic complexity", 
-          hjust = 1,
-          size = 3.5,
-          fontface = "italic",
-          color = "#2A4D69"
-        )
-      } else {
-        annotate(
-          "text", 
-          x = min(pca_data_viz$PC1) * 0.85, 
-          y = 0, 
-          label = "← Higher linguistic complexity", 
-          hjust = 0,
-          size = 3.5,
-          fontface = "italic",
-          color = "#2A4D69"
-        )
-      }
-    }
-  }
-
-# 7. Calculate potential clusters
-# ------------------------------
-
-# Perform k-means clustering with k=3 (but not used for coloring until interpretation)
-set.seed(123) # For reproducibility
-kmeans_result <- kmeans(pca_data_viz[, c("PC1", "PC2")], centers = 3, nstart = 25)
-
-# Add cluster information to the data (for reference only)
-pca_data_viz$cluster <- as.factor(kmeans_result$cluster)
-
-# Create a data frame mapping book_id to cluster
-book_clusters <- data.frame(
-  book_id = pca_data_viz$book_id,
-  cluster = pca_data_viz$cluster
-)
-
-# 8. Print key insights
-# --------------------
-
-# Top contributors to PC1
-cat("Top contributors to PC1 (potential complexity dimension):\n")
-print(feature_contrib %>% 
-        arrange(desc(abs(PC1_loading))) %>% 
-        head(8) %>% 
-        select(feature, PC1_loading, PC1_contrib))
-
-# Top contributors to PC2
-cat("\nTop contributors to PC2 (second dimension):\n")
-print(feature_contrib %>% 
-        arrange(desc(abs(PC2_loading))) %>% 
-        head(8) %>% 
-        select(feature, PC2_loading, PC2_contrib))
-
-# Show the cluster memberships (without labeling the clusters)
-cat("\nBooks grouped by similar linguistic features:\n")
-for(i in 1:length(unique(book_clusters$cluster))) {
-  cat(paste0("Group ", i, ": ", 
-            paste(book_clusters$book_id[book_clusters$cluster == i], collapse=", "), 
-            "\n"))
-}
-
-# Display the final PCA plot
-print(pca_plot_final)
-
-
-```
-
-```{r}
-#| label: heatmap_pca
-
-# 9. Create a heatmap visualization of feature correlations with PCs
+# Step 6: Identify key differentiating features
 # -----------------------------------------------------------------
-
-# Get correlation of features with PCs
-feature_pc_correlation <- data.frame(
-  feature = rownames(loadings),
-  PC1 = loadings[,1],
-  PC2 = loadings[,2]
+# Calculate feature contribution to first two principal components
+feature_contrib <- data.frame(
+  feature = colnames(gaiman_features),
+  PC1_contribution = abs(loadings[, 1]),
+  PC2_contribution = abs(loadings[, 2])
 ) %>%
-  # Focus on top contributors
-  filter(feature %in% top_features) %>%
-  # Prepare for ggplot
-  pivot_longer(cols = c(PC1, PC2), 
-               names_to = "component", 
-               values_to = "correlation")
+  arrange(desc(PC1_contribution))
 
-# Create heatmap
-feature_heatmap <- ggplot(feature_pc_correlation, 
-                         aes(x = component, 
-                             y = reorder(feature, abs(correlation)), 
-                             fill = correlation)) +
-  geom_tile() +
-  scale_fill_gradient2(low = "#4575B4", mid = "white", high = "#D73027", 
-                      midpoint = 0, limits = c(-1, 1)) +
-  labs(
-    title = "Feature Loadings on Principal Components",
-    x = "Principal Component", 
-    y = "Feature",
-    fill = "Correlation"
-  ) +
-  theme_minimal() +
-  theme(
-    axis.text.y = element_text(hjust = 1),
-    panel.grid = element_blank()
-  )
+print(feature_contrib)
 
-print(feature_heatmap)
 ```
 
 ### Discussion 
@@ -1861,3 +1632,4 @@ print(feature_heatmap)
 ### Conclusion 
 
 ### Reference
+
