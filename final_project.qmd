@@ -1,5 +1,6 @@
 ---
 title: "Stylistic Variations in Neil Gaiman's Work: A Corpus-Driven Analysis"
+author: "Hongxu Zhou" 
 ---
 
 ## Introduction
@@ -55,15 +56,9 @@ To accelerate the calculation and analysis, some basic statistical features are 
 
 -   Studies on Neil Gaiman's writing style (if available)
 
--   **Research Questions**:
+-   **Drafted Research Questions**:
 
-    1.  What lexical features differentiate Gaiman's writing across audience demographics?
-
-    2.  How do syntactic complexity and sentence-level features vary across Gaiman's works?
-
-    3.  What discourse-level patterns (POV, modality) characterize works for different audiences?
-
-    4.  How do these features collectively distinguish his works for different reader demographics?
+    1.  What linguistic features differentiate Gaiman's writing across audience demographics?
 
 ## Methodology 
 
@@ -101,42 +96,6 @@ corpus_summary <- book_metadata |>
 print(corpus_summary)
 ```
 
-#### 1. Vocabulary Complexity
-
-##### Lexical Diversity
-
-First, we check lexical diversity
-
-```{r}
-#| label: ttr_visualisation
-# Lexical diversity is already stored in the corpus, so we just need to visulaise it 
-lex_div_plot <- ggplot(book_metadata, 
-                      aes(x = reorder(book_id, lexical_diversity), 
-                          y = lexical_diversity)) +
-  geom_bar(stat = "identity", fill = "lightgreen", alpha = 0.8) +
-  # Add reference line for average
-  geom_hline(yintercept = mean(book_metadata$lexical_diversity), 
-             linetype = "dashed", color = "red") +
-  # Add text annotation for average
-  annotate("text", 
-           x = 1, 
-           y = mean(book_metadata$lexical_diversity) + 0.01, 
-           label = "Corpus Average", 
-           hjust = 0, 
-           color = "red") +
-  labs(
-    title = "Lexical Diversity by Book",
-    subtitle = "Higher values indicate more varied vocabulary",
-    x = "Book",
-    y = "Type-Token Ratio"
-  ) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-print(lex_div_plot)
-
-```
-
 It might be counter-intuitive to see that the shortest, very children-oriented painted book Fortunately, the Milk has the highest TTR, while the longer, adult-targeted books such as American Gods and Anasi Boys are the lowerest. However, it makes sense. Given that FTM is the shortest, the words are more likely to appear in fewer times, even only once, which increases the ratio of type. Being opposite to that, the long novels contain much more words of which many are common words. They water down TTR. This calls for more detailed and comprehensive stylistic analysis on multiple layers of the text.
 
 ##### Word Length Distribution
@@ -171,6 +130,8 @@ word_lengh_stats <- token_length |>
 print(word_lengh_stats)
 ```
 
+As the chart shows, Gaiman's writing shows a consistent pattern across his works. Most words are at around 4 characters, which reflect the common pattern of English.
+
 We can visualise the results
 
 ```{r}
@@ -202,14 +163,41 @@ word_lengh_dist <- token_length |>
 print(word_lengh_dist)
 ```
 
-As the chart shows, Gaiman's writing shows a consistent pattern across his works. Most words are at around 4 characters, which reflect the common pattern of English.
+##### Lexical Diversity
 
-##### Word Frequency
+```{r}
+#| label: ttr_visualisation
+# Lexical diversity is already stored in the corpus, so we just need to visulaise it 
+lex_div_plot <- ggplot(book_metadata, 
+                      aes(x = reorder(book_id, lexical_diversity), 
+                          y = lexical_diversity)) +
+  geom_bar(stat = "identity", fill = "lightgreen", alpha = 0.8) +
+  # Add reference line for average
+  geom_hline(yintercept = mean(book_metadata$lexical_diversity), 
+             linetype = "dashed", color = "red") +
+  # Add text annotation for average
+  annotate("text", 
+           x = 1, 
+           y = mean(book_metadata$lexical_diversity) + 0.01, 
+           label = "Corpus Average", 
+           hjust = 0, 
+           color = "red") +
+  labs(
+    title = "Lexical Diversity by Book",
+    subtitle = "Higher values indicate more varied vocabulary",
+    x = "Book",
+    y = "Type-Token Ratio"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-We first remove common stopwords before checking the word frequency
+print(lex_div_plot)
+
+```
 
 ```{r}
 #| label: word_frequnecy
+#| include: false
 vocabulary <- gaiman_corpus$vocabulary
 stopwords = stopwords(language = "en")
 
@@ -235,12 +223,6 @@ top_words_plot <- ggplot(top_content_words,
 print(top_words_plot)
 ```
 
-#### 2. Lexical Choices
-
-We will use the package `quanteda` for most lexical analysis
-
-First, we will prepare quanteda corpora for analysis:
-
 ```{r}
 #| label: quanteda_loading
 # Create a corpus from the document level data
@@ -255,14 +237,6 @@ docvars(quanteda_corpus, "title") <- gaiman_corpus$document_level$title
 docvars(quanteda_corpus, "chapter_num") <- gaiman_corpus$document_level$chapter_num
 
 ```
-
--   Keyword analysis
-
-    -   consider a big table showing the top 10 keywords of the ten books
-
-        -   Maybe not too much, because that would be too dense to read
-
-            -   if there are shared keywords, consider showing the different collocations
 
 ##### Keyword analysis
 
@@ -364,11 +338,9 @@ top_keywords_plot <- keywords_df %>%
 print(top_keywords_plot)
 ```
 
-#### Sentence Level
+#### Sentence Level 
 
-#### 1. Syntactic Structures
-
--   Sentence length variation
+##### Sentence length analysis
 
 ```{r}
 #| label: sent_loading
@@ -418,7 +390,7 @@ sentence_length_vis <- sentence_data %>%
 print(sentence_length_vis)
 ```
 
--   syntactic complexity
+##### Syntactic Complexity
 
 Mean Dependency Length Analysis: the average distance between words and their syntactic heads
 
@@ -596,16 +568,83 @@ for(i in 1:nrow(example_sentences)) {
 }
 ```
 
-#### Sentiment Analysis
+##### Readability Analysis
+
+```{r}
+#| label: readability_score_vis
+# Data-driven Readability Analysis
+# ---------------------------------------
+# Focus solely on Flesch-Kincaid Grade Level without imposing age categories
+
+# 1. Calculate readability scores for each book
+book_texts <- gaiman_corpus$document_level %>%
+  group_by(book_id) %>%
+  summarise(text = paste(text, collapse = " ")) %>%
+  ungroup()
+
+# 2. Use quanteda for readability calculations
+readability_scores <- textstat_readability(
+  book_texts$text,
+  measure = c("Flesch.Kincaid")  # Focus on just this measure
+)
+readability_scores$book_id <- book_texts$book_id
+
+# 3. Join with book information
+readability_data <- readability_scores %>%
+  # Get book information (title only)
+  left_join(
+    gaiman_corpus$metadata$book_level %>% 
+      select(book_id, title), 
+    by = "book_id"
+  )
+
+# 4. Create a cleaner, data-driven visualization
+readability_plot <- ggplot(readability_data,
+  # Sort by Flesch-Kincaid score (reading difficulty)
+  aes(x = reorder(book_id, Flesch.Kincaid),
+      y = Flesch.Kincaid)) +
+  # Use a gradient color reflecting complexity, but not imposing categories
+  geom_col(aes(fill = Flesch.Kincaid)) +
+  scale_fill_gradient(low = "#E3F2FD", high = "#1565C0") +
+  # Add labeled reference lines for grade level interpretation
+  geom_hline(yintercept = c(5, 8, 12), linetype = "dashed", color = "gray60") +
+  annotate("text", x = 1, y = 5.2, label = "5th Grade", hjust = 0, size = 3, color = "gray40") +
+  annotate("text", x = 1, y = 8.2, label = "8th Grade", hjust = 0, size = 3, color = "gray40") +
+  annotate("text", x = 1, y = 12.2, label = "12th Grade", hjust = 0, size = 3, color = "gray40") +
+  labs(
+    title = "Reading Difficulty of Gaiman's Works",
+    subtitle = "Flesch-Kincaid Grade Level (higher = more difficult reading)",
+    x = "Book",
+    y = "Reading Grade Level",
+    fill = "Grade Level"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.minor = element_blank(),
+    legend.position = "right"
+  )
+
+# 5. Add book titles to the plot for clearer identification
+readability_plot <- readability_plot +
+  # Add book titles as text labels
+  geom_text(
+    aes(label = title, y = 0.5),
+    angle = 90, hjust = 0, size = 2.5, color = "grey45"
+  )
+
+# Display the visualization
+print(readability_plot)
+```
+
+##### Sentiment & Profanity Analysis
+
+I use sentenceR package to conduct sentence-level sentiment analysis
+
+1.  sentiment analysis
 
 ```{r}
 #| label: senti_ana_vis
-
-# Load required libraries
-library(sentimentr)
-library(dplyr)
-library(tidyr)
-library(ggplot2)
 
 # First, let's set up a simple analysis pipeline
 
@@ -700,105 +739,66 @@ print(sentiment_summary)
 ```
 
 ```{r}
-# Normalized Sentiment Flow Analysis
-# ---------------------------------------
-# This function creates a normalized sentiment flow chart for all books
-# showing how sentiment changes throughout the narrative progression
+#| label: senti_arc_vis
+# Sentiment Flow Analysis
+# This function visualizes how sentiment changes throughout each book's narrative progression
 
-# 1. Calculate normalized chapter positions and sentiment scores for all books
-normalized_sentiment_flow <- sentence_sentiment %>%
-  # Group by book and chapter to get average sentiment per chapter
-  group_by(book_id, chapter_num) %>%
-  summarise(
-    chapter_sentiment = mean(ave_sentiment, na.rm = TRUE),
-    samples = n(),  # Track number of sentences for potential weighting
-    .groups = "drop"
+# 1. Calculate sentiment by chapter for each book
+chapter_sentiment <- sentence_sentiment %>%
+  # Join with document information to get chapter numbers
+  left_join(
+    gaiman_corpus$sentence_level %>% 
+      select(book_id, sentence_id, chapter_num) %>% 
+      distinct(),
+    by = c("book_id", "sentence_id")
   ) %>%
-  # For each book, calculate normalized position (0-100%)
+  # Group by book and chapter to calculate average sentiment
+  group_by(book_id, chapter_num) %>%
+  summarize(
+    chapter_sentiment = mean(ave_sentiment, na.rm = TRUE),
+    sentences_count = n(),
+    .groups = "drop"
+  )
+
+# 2. Calculate normalized position for each chapter within its book
+normalized_sentiment_flow <- chapter_sentiment %>%
+  # Group by book to calculate relative positions
   group_by(book_id) %>%
   mutate(
     # Get the max chapter number for each book
-    max_chapter = max(chapter_num),
+    max_chapter = max(chapter_num, na.rm = TRUE),
     # Calculate normalized position (0-100% of narrative)
-    narrative_position = (chapter_num / max_chapter) * 100,
-    # Calculate z-scores for better cross-book comparison
-    sentiment_z = scale(chapter_sentiment)[,1]
+    narrative_position = (chapter_num / max_chapter) * 100
   ) %>%
   # Get book titles for better labeling
   left_join(
-    distinct(sentence_sentiment[, c("book_id", "title")]),
+    gaiman_corpus$document_level %>% 
+      select(book_id, title) %>% 
+      distinct(),
     by = "book_id"
-  )
+  ) %>%
+  # Make sure we don't have NA values
+  filter(!is.na(chapter_sentiment))
 
-# Fix missing data for ST and TGB
-# First check what's happening with these books' data
-missing_books_data <- normalized_sentiment_flow %>%
-  filter(book_id %in% c("ST", "TGB")) %>%
-  summarise(
-    total_rows = n(),
-    na_count = sum(is.na(chapter_sentiment)),
-    zero_count = sum(chapter_sentiment == 0, na.rm = TRUE),
-    min_val = min(chapter_sentiment, na.rm = TRUE),
-    max_val = max(chapter_sentiment, na.rm = TRUE)
-  )
-print(missing_books_data)
-
-# Fix 1: Replace NA values with 0 (if that's the issue)
-normalized_sentiment_flow <- normalized_sentiment_flow %>%
-  mutate(chapter_sentiment = ifelse(is.na(chapter_sentiment), 0, chapter_sentiment))
-
-# 2. Create the normalized sentiment flow visualization for all books
-narrative_flow_plot <- ggplot(normalized_sentiment_flow, 
-                             aes(x = narrative_position, 
-                                 y = chapter_sentiment, 
+# 3. Create a combined visualization showing all books' arcs
+emotional_arcs_plot <- ggplot(normalized_sentiment_flow,
+                             aes(x = narrative_position,
+                                 y = chapter_sentiment,
                                  color = book_id)) +
   # Add smoothed trend lines to see the emotional arc
-  geom_smooth(se = FALSE, span = 0.5, size = 1) +
+  geom_smooth(method = "loess", se = FALSE, span = 0.6, linewidth = 1) +
   # Add small points for actual chapter sentiments
   geom_point(alpha = 0.4, size = 1.5) +
-  # Facet by book for easier comparison, use a small multiple approach
-  facet_wrap(~ title, scales = "free_y") +
-  # Add clear labels
+  # Add horizontal reference line at neutral sentiment (0)
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray50", linewidth = 0.5) +
+  # Add labels
   labs(
     title = "Emotional Arcs in Neil Gaiman's Works",
     subtitle = "Sentiment progression throughout narrative (0% = beginning, 100% = end)",
     x = "Narrative Progression (%)",
-    y = "Sentiment Score",
-    color = "Book"
-  ) +
-  # Use a subdued color scheme that works for multiple lines
-  scale_color_brewer(palette = "Set2") +
-  # Remove legend since we're using facets
-  theme_minimal() +
-  theme(
-    legend.position = "none",
-    panel.spacing = unit(1, "lines"),
-    strip.text = element_text(face = "bold"),
-    panel.grid.minor = element_blank()
-  )
-
-# 3. Create a single-panel version showing all books for direct comparison
-combined_flow_plot <- ggplot(normalized_sentiment_flow, 
-                            aes(x = narrative_position, 
-                                y = chapter_sentiment, 
-                                color = book_id)) +
-  # Add smoothed trend lines
-  geom_smooth(se = FALSE, span = 0.5, size = 1.2) +
-  # Add book-specific endpoints to see where each narrative concludes
-  geom_point(data = normalized_sentiment_flow %>% 
-               group_by(book_id) %>% 
-               filter(narrative_position == max(narrative_position)),
-             size = 3, shape = 18) +
-  # Add clear labels
-  labs(
-    title = "Comparing Emotional Arcs Across Gaiman's Works",
-    subtitle = "How sentiment evolves from beginning (0%) to end (100%) of each book",
-    x = "Narrative Progression (%)",
     y = "Average Sentiment Score",
     color = "Book"
   ) +
-  # Add a horizontal reference line at neutral sentiment (0)
-  geom_hline(yintercept = 0, linetype = "dashed", color = "gray50", size = 0.5) +
   # Use a color palette that distinguishes between books
   scale_color_brewer(palette = "Paired") +
   theme_minimal() +
@@ -807,59 +807,64 @@ combined_flow_plot <- ggplot(normalized_sentiment_flow,
     panel.grid.minor = element_blank()
   )
 
-# To make it focused, only show the combined flow 
-print(combined_flow_plot)
-
-```
-
-```{r}
-# 1. First check if ST and TGB exist in the original corpus
-book_presence <- gaiman_corpus$document_level %>%
-  group_by(book_id) %>%
-  summarise(
-    chapters = n_distinct(chapter_num),
-    total_text = sum(nchar(text))
+# 4. Create a facetted version showing individual book arcs
+individual_arcs_plot <- ggplot(normalized_sentiment_flow,
+                              aes(x = narrative_position,
+                                  y = chapter_sentiment)) +
+  # Add smoothed trend lines to see the emotional arc
+  geom_smooth(method = "loess", se = FALSE, span = 0.6, aes(color = book_id), linewidth = 1) +
+  # Add small points for actual chapter sentiments
+  geom_point(alpha = 0.4, size = 1.5, color = "darkgray") +
+  # Add horizontal reference line at neutral sentiment (0)
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray50", linewidth = 0.5) +
+  # Facet by book title for individual arcs
+  facet_wrap(~ title, scales = "free_y") +
+  # Add labels
+  labs(
+    title = "Individual Emotional Arcs in Neil Gaiman's Works",
+    subtitle = "Sentiment progression by narrative position for each book",
+    x = "Narrative Progression (%)",
+    y = "Average Sentiment Score"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    panel.spacing = unit(1, "lines"),
+    strip.text = element_text(face = "bold"),
+    panel.grid.minor = element_blank()
   )
-print(book_presence)
 
-# 2. Check for chapter structure issues
-chapter_structure <- gaiman_corpus$document_level %>%
-  filter(book_id %in% c("ST", "TGB")) %>%
-  group_by(book_id) %>%
-  summarise(
-    min_chapter = min(chapter_num),
-    max_chapter = max(chapter_num),
-    chapter_count = n_distinct(chapter_num),
-    sequential_chapters = max_chapter - min_chapter + 1 == chapter_count
-  )
-print(chapter_structure)
+# 5. Print both visualizations
+print(emotional_arcs_plot)
+print(individual_arcs_plot)
 
-# 3. Examine sentiment calculation at sentence level for these books
-sentiment_check <- sentence_sentiment %>%
-  filter(book_id %in% c("ST", "TGB")) %>%
-  group_by(book_id, chapter_num) %>%
-  summarise(
-    sentence_count = n(),
-    na_sentiment_count = sum(is.na(ave_sentiment)),
-    avg_sentiment = mean(ave_sentiment, na.rm = TRUE),
+# 6. Calculate key statistics about the arcs
+arc_statistics <- normalized_sentiment_flow %>%
+  group_by(book_id, title) %>%
+  summarize(
+    start_sentiment = first(chapter_sentiment),
+    end_sentiment = last(chapter_sentiment),
+    min_sentiment = min(chapter_sentiment),
+    max_sentiment = max(chapter_sentiment),
+    sentiment_range = max_sentiment - min_sentiment,
+    overall_trend = end_sentiment - start_sentiment,
     .groups = "drop"
-  )
-print(sentiment_check)
+  ) %>%
+  mutate(
+    arc_type = case_when(
+      overall_trend > 0.05 ~ "Rising (positive resolution)",
+      overall_trend < -0.05 ~ "Falling (negative resolution)",
+      TRUE ~ "Neutral/Circular"
+    )
+  ) %>%
+  arrange(desc(overall_trend))
 
-# 4. Look for anomalies in the chapter aggregation
-problem_chapters <- normalized_sentiment_flow %>%
-  filter(book_id %in% c("ST", "TGB")) %>%
-  select(book_id, chapter_num, chapter_sentiment, narrative_position, sentiment_z) %>%
-  arrange(book_id, chapter_num)
-print(problem_chapters)
+# 7. Print summary statistics
+print(arc_statistics)
 ```
 
--   
-
--   \
-    Prohibitive Expressions Analysis
-
-**swear analysis with examples**
+2.  Profanity analysis \
+    I use dictionary based approach to detect the occurrence of different swear words in Gaiman's books.
 
 ```{r}
 #| label: swear_analysis_calculation
@@ -1144,82 +1149,15 @@ for (book in top_books) {
 }
 ```
 
-#### 3. Readability Measure
-
-```{r}
-# Data-driven Readability Analysis
-# ---------------------------------------
-# Focus solely on Flesch-Kincaid Grade Level without imposing age categories
-
-# 1. Calculate readability scores for each book
-book_texts <- gaiman_corpus$document_level %>%
-  group_by(book_id) %>%
-  summarise(text = paste(text, collapse = " ")) %>%
-  ungroup()
-
-# 2. Use quanteda for readability calculations
-readability_scores <- textstat_readability(
-  book_texts$text,
-  measure = c("Flesch.Kincaid")  # Focus on just this measure
-)
-readability_scores$book_id <- book_texts$book_id
-
-# 3. Join with book information
-readability_data <- readability_scores %>%
-  # Get book information (title only)
-  left_join(
-    gaiman_corpus$metadata$book_level %>% 
-      select(book_id, title), 
-    by = "book_id"
-  )
-
-# 4. Create a cleaner, data-driven visualization
-readability_plot <- ggplot(readability_data,
-  # Sort by Flesch-Kincaid score (reading difficulty)
-  aes(x = reorder(book_id, Flesch.Kincaid),
-      y = Flesch.Kincaid)) +
-  # Use a gradient color reflecting complexity, but not imposing categories
-  geom_col(aes(fill = Flesch.Kincaid)) +
-  scale_fill_gradient(low = "#E3F2FD", high = "#1565C0") +
-  # Add labeled reference lines for grade level interpretation
-  geom_hline(yintercept = c(5, 8, 12), linetype = "dashed", color = "gray60") +
-  annotate("text", x = 1, y = 5.2, label = "5th Grade", hjust = 0, size = 3, color = "gray40") +
-  annotate("text", x = 1, y = 8.2, label = "8th Grade", hjust = 0, size = 3, color = "gray40") +
-  annotate("text", x = 1, y = 12.2, label = "12th Grade", hjust = 0, size = 3, color = "gray40") +
-  labs(
-    title = "Reading Difficulty of Gaiman's Works",
-    subtitle = "Flesch-Kincaid Grade Level (higher = more difficult reading)",
-    x = "Book",
-    y = "Reading Grade Level",
-    fill = "Grade Level"
-  ) +
-  theme_minimal() +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    panel.grid.minor = element_blank(),
-    legend.position = "right"
-  )
-
-# 5. Add book titles to the plot for clearer identification
-readability_plot <- readability_plot +
-  # Add book titles as text labels
-  geom_text(
-    aes(label = title, y = 0.5),
-    angle = 90, hjust = 0, size = 2.5, color = "white"
-  )
-
-# Display the visualization
-print(readability_plot)
+```{}
 ```
 
 #### Discourse level
 
-#### 1. Narrative Perspective
-
--   Point of view
-    -   pronoun patterns
+##### Point of View analysis
 
 ```{r}
+#| label: pov_dist
 # Function to analyze POV markers in text
 analyze_pov <- function(text) {
   # Define POV marker patterns
@@ -1308,9 +1246,8 @@ pov_plot <- ggplot(pov_long,
 print(pov_plot)
 ```
 
-Perspective stable index
-
 ```{r}
+#| label: pov_shift_analysis
  # POV Stability Analysis (Window-based approach)
 # ---------------------------------------
 
@@ -1387,6 +1324,11 @@ pov_stability <- pov_stability %>%
     by = "book_id"
   )
 
+
+```
+
+```{r}
+#| label: pov_stable_vis
 # Create perspective stability visualization
 stability_plot <- ggplot(pov_stability, 
                         aes(x = reorder(book_id, stability_index),
@@ -1403,6 +1345,14 @@ stability_plot <- ggplot(pov_stability,
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
+
+# Display both visualizations
+print(stability_plot)
+
+```
+
+```{r}
+#| label: pov_composition_vis
 # Create perspective composition visualization
 composition_data <- pov_stability %>%
   select(book_id, pct_first, pct_second, pct_third) %>%
@@ -1437,16 +1387,13 @@ composition_plot <- ggplot(composition_data,
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-# Display both visualizations
-print(stability_plot)
 print(composition_plot)
 ```
 
-#### 2. Modality
-
--   use narrative function categorisation
+##### Modal verbs analysis
 
 ```{r}
+#| label: mocal_verb_cal
 # Modal Verb Analysis by Narrative Function
 # ---------------------------------------
 
@@ -1509,6 +1456,7 @@ modal_results <- book_texts %>%
 ```
 
 ```{r}
+#| label: modal_verb_vis
 # Get book titles for visualization
 modal_results <- modal_results %>%
   left_join(
@@ -1562,6 +1510,7 @@ print(modal_plot)
 ```
 
 ```{r}
+#| label: authority_vis
 # Authority ratio visualization
 authority_plot <- ggplot(modal_results,
                         aes(x = reorder(book_id, authority_ratio),
@@ -1583,16 +1532,13 @@ authority_plot <- ggplot(modal_results,
 print(authority_plot)
 ```
 
-#### 4. Combined Analysis
-
--   consider a way to combine POV and modal verbs
-
 #### Integrated Analysis 
 
 Consider use PCA to visualise the distribution of the ten books on the spectrum of children-adults.\
 Or if you have some better idea.
 
 ```{r}
+#| label: pca_feature_selection
 # 1. Gather all relevant features into one dataset
 # ------------------------------------------------
 
@@ -1659,6 +1605,7 @@ book_features <- book_features %>%
 ```
 
 ```{r}
+#| label: pca_and_clustering
 # 2. Clean and prepare features for PCA
 # -------------------------------------
 
@@ -1868,6 +1815,8 @@ print(pca_plot_final)
 ```
 
 ```{r}
+#| label: heatmap_pca
+
 # 9. Create a heatmap visualization of feature correlations with PCs
 # -----------------------------------------------------------------
 
