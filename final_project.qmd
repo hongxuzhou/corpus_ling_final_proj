@@ -1,7 +1,12 @@
 ---
 title: "Stylistic Variations in Neil Gaiman's Work: A Corpus-Driven Analysis"
 author: "Hongxu Zhou" 
+bibliography: corpus_ling_ref.bib
+cite-method: biblatex
+csl: apa.csl
 ---
+
+## Abstract
 
 ## Introduction
 
@@ -66,18 +71,53 @@ To accelerate the calculation and analysis, some basic statistical features are 
 
 ### Corpus
 
--   **Data**: Description of the 10 books with their basic information (provide a table with titles, word counts, publication dates, and target audience)
+This study exploys a specialised corpus conprising ten books by Neil Gaiman, slected to represent the author's rage across audience demographics. The ten books are:
 
--   **Structure**: Explanation of your three-tiered corpus design (document, sentence, token levels)
+-   American Gods
 
--   Description of metadata and vocabulary components
+-   Anansi Boys
 
--   Preprocessing steps
+-   Neverwhere
 
-Result reporting: the basic nature of the corpus
+-   Smoke and Mirrors
+
+-   The Ocean at the End of the Lane
+
+-   Coraline
+
+-   The Graveyard Book
+
+-   Fortunately, the Milk
+
+-   Odd and the Frost Giants
+
+-   Stardust
+
+They span Gaiman's career and represent various genres within his oeuvre. Therefore, this corpus is a balanced representation for analysis of potential stylistic variations.
+
+Each books was obtained in EPUB format, which preserved textual content while maintaining structural elements that enables programming analysis. The `epubr` package [@leonawicz2025] was used to extract and parse content from these books while preserving metadata and chapter boundaries.
+
+The the cop was designed with the multi-tired structure to accelarate analysis at different levels of linguistic granularity:
+
+1.  **Document-level**: Each chapter/single story constitute a document. This layer of corpus keeps narrative unites as defined by the author, and so enables analysis of chapter-level stylistic patterns and narrative structure.
+2.  **Sentence-level**: The text is segmented into individual sentences using the `tokenizers` package [@mullen], which applies rule-based sentence boundary disambiguation. This intermediate level allows for analysis of syntactic patterns and sentence complexity.
+3.  **Token-level**: Individual words are extracted for lexical analysis. Tokens maintain references to their source sentences and documents, enabling multi-level analysis.
+
+Additionally, two supplementary components are created:
+
+1.  **Metadata layer**: It contains corpus-level statistics (total size, unique vocabulary) and book-level metadata (lexical diversity, average sentence length).
+
+<!-- -->
+
+2.  **Vocabulary layer**: It provides frequency and distribution for each unique token in the corpus.
+
+As a result, the corpus contains 711,385 words across 154 documents (chapter/story), with an average of 15.4 chapters per book. The corpus contains 60,127 sentences with an average length of 12.3 words per sentence. The vocabulary size (type) is 28, 968.
 
 ```{r}
 #| label: exploratory_analysis
+#| message: false
+#| warning: false
+#| include: false
 # Extract book-level metadata
 book_metadata <- gaiman_corpus$metadata$book_level
 
@@ -100,9 +140,11 @@ print(corpus_summary)
 
 #### lexical level
 
+The lexical analysis examines word-level patterns that might distinguish text for different audience groups. I analysed word length distribution, lexical diversity, and distinctive vocabulary to investigate potential stylistic variations.
+
 ##### Word Length Distribution
 
-Moving on, we check the distribution of word length
+Word length often correlates with text complexity — longer words typically appear in more advanced or specialised text [@biber1988]. Figure @fig-word_length_vis presents the percentage of words at each length across Gaiman's works. This visualisation reveals a remarkably consistent pattern across all books, with most words averaging around 4 characters regardless of the intended audience. This suggests that at the the basic word length level, Gaiman maintains a relatively stable style.
 
 ```{r}
 #| label: word_length_cal
@@ -132,12 +174,9 @@ word_lengh_stats <- token_length |>
 print(word_lengh_stats)
 ```
 
-As the chart shows, Gaiman's writing shows a consistent pattern across his works. Most words are at around 4 characters, which reflect the common pattern of English. The shorted appears in Ocean, while the longest in NW.
-
-We can visualise the results
-
 ```{r}
-#| label: word_length_vis
+#| label: fig-word_length_vis
+#| fig-cap: "Word Length Distribution by Book"
 word_lengh_dist <- token_length |> 
   # Count occurrences of each word length in each book 
   count(book_id, word_length) |> 
@@ -167,8 +206,15 @@ print(word_lengh_dist)
 
 ##### Lexical Diversity
 
+Lexical diversity is measured using the type-token ratio (TTR), which represents vocabulary richness:
+
+$$
+Lexical\quad Diversity = \frac {Number \quad of \quad Unique \quad Words} {Total \quad Word \quad Count}
+$$
+
 ```{r}
-#| label: ttr_visualisation
+#| label: fig-ttr_visualisation
+#| fig-cap: "Lexical Diversity by Book"
 # Lexical diversity is already stored in the corpus, so we just need to visulaise it 
 lex_div_plot <- ggplot(book_metadata, 
                       aes(x = reorder(book_id, lexical_diversity), 
@@ -185,7 +231,7 @@ lex_div_plot <- ggplot(book_metadata,
            hjust = 0, 
            color = "red") +
   labs(
-    title = "Lexical Diversity by Book",
+    #title = "Lexical Diversity by Book",
     subtitle = "Higher values indicate more varied vocabulary",
     x = "Book",
     y = "Type-Token Ratio"
@@ -197,7 +243,7 @@ print(lex_div_plot)
 
 ```
 
-Admit the limitation: TTR is sensitive to text length, and so simply using TTR cannot differentiate if a book is for children or adults, so we need more extensive and in-depth analysis.
+Figure @fig-ttr_visualisation displays the lexical diversity values cross the 10 books. Interestingly, the TTR values do not clearly separate along audience lines. Even, Fortunately, the Milk, a typical picture book for children, has the highest TTR value. This finding may virtually challenge the assumption that books for younger readers use simpler vocabulary. However, it is acknowledged that TTR is sensitive to text length – longer texts naturally tend toward lower TTR values due to necessary repetition of function words and proper names. This limitation suggests the need for additional, more sophisticated linguistic measures beyond basic lexical metrics.
 
 ```{r}
 #| label: word_frequnecy
@@ -244,7 +290,7 @@ docvars(quanteda_corpus, "chapter_num") <- gaiman_corpus$document_level$chapter_
 
 ##### Keyword analysis
 
-We use log-off to calculate keywords of the ten books
+To identify vocabulary patterns distinctive to each book, I use a log-odds ratio analysis to compare word frequencies within each book against the rest of the corpus.
 
 ```{r}
 #| label: log_off_cal
@@ -314,10 +360,9 @@ for (book_id in book_ids) {
 keywords_df <- bind_rows(all_keywords)
 ```
 
-We can visualise the results:
-
 ```{r}
-#| label: log_off_vis
+#| label: fig-log_off_keywords
+#| fig-cap: Top 10 Keywords by Book
 # Visualize top 10 keywords for each book
 top_keywords_plot <- keywords_df %>%
   group_by(book_id) %>%
@@ -331,7 +376,7 @@ top_keywords_plot <- keywords_df %>%
   upstartr::scale_x_reordered() +  # Required for reorder_within
   coord_flip() +
   labs(
-    title = "Top 10 Distinctive Words by Book",
+    #title = "Top 10 Distinctive Words by Book",
     subtitle = "Based on log odds ratio compared to other books",
     x = "Term",
     y = "Log Odds Ratio"
@@ -342,9 +387,13 @@ top_keywords_plot <- keywords_df %>%
 print(top_keywords_plot)
 ```
 
-Briefly explain this keyword results.
+@fig-log_off_keywords shows the top distinctive words for each book. The keyword analysis reveals thematic differences more than stylistic ones: distinctive words primarily reflect characters and plot elements rather than systematic vocabulary differences based on audience age.
+
+The lexical results suggest that Gaiman does not significantly simplify his vocabulary for younger readers. This finding may contraindicate conventional assumptions about children's literature. The unexpected pattern prompts to look beyond word-level features toward sentence structure and complexity, where more pronounced stylistic variations might emerge.
 
 #### Sentence Level
+
+The sentence level analysis provides deeper insights into the stylistic variation in the corpus than word-level features alone. Based on sentence structure analysis, I examine complexity, readability and content characteristics across different works.
 
 ##### Sentence length analysis
 
@@ -357,7 +406,8 @@ sentence_data <- gaiman_corpus$sentence_level %>%
 ```
 
 ```{r}
-#| label: sentent_length_dist_vis
+#| label: fig-sentent_length_dist_vis
+#| fig-cap: "Sentence Length Distribution by Book"
 # Calculate sentence length statistics
 sentence_length_stats <- sentence_data %>%
   # Add sentence length in words
@@ -385,7 +435,7 @@ sentence_length_vis <- sentence_data %>%
   ggplot(aes(x = sentence_length, y = book_id, fill = book_id)) +
   geom_density_ridges(alpha = 0.7, scale = 3) +
   labs(
-    title = "Sentence Length Distribution by Book",
+    #title = "Sentence Length Distribution by Book",
     subtitle = "Ridgeline plot of word counts per sentence",
     x = "Words per Sentence",
     y = "Book"
@@ -396,11 +446,13 @@ sentence_length_vis <- sentence_data %>%
 print(sentence_length_vis)
 ```
 
-The result of sentence length distribution may of fewer analytical values, but builds the base for coming analysis. So, I put it at the beggning of this section.
+As a fundamental metric, sentence length offers initial insights into text complexity. @fig-sentent_length_dist_vis displays the distribution of sentence lengths across Gaiman's books. While all of them show similar central tendencies with peaks around 7-12 words per sentence, *Fortunately, the Milk* and *Odd and the Frost Giants* display narrower distributions with fewer long sentences. The more controlled sentence length variance suggests that they are more likely for children, though the differences are subtle and require deeper syntactic analysis.
 
 ##### Syntactic Complexity
 
-Mean Dependency Length Analysis: the average distance between words and their syntactic heads
+Syntactic complexity is measured through dependency parsing, which captures the relationships between words in a sentence. Mean dependency length (MDL) is a method that calculates the average distance between syntactically related words. It represents language comprehension difficulty [@haitaoliu2008]. Higher MDL values indicate more complex sentence structures, for example, with embedded or non-adjacent relationships.
+
+This analysis sampled 100 sentences from each book and parsed them using the Universal Dependency framework provided by `udpipe` [@straka2016]. @fig-ud_vis presents the mean dependency length for each work. Three books that are generally considered for adults, *American Gods, Neverwhere,* and *Anansi Boys* show consistently higher MDL values (from 3.5 to 4.2) compared to those typically for children and younger audiences (*Odd and the Frost Giants, Fortunately, the Milk*), which show lower values (from 2.4 to 3). This pattern suggests Gaiman systematically adjusts syntactic complexity based on intended audience.
 
 ```{r}
 #| label: ud_cal
@@ -496,7 +548,8 @@ book_dependency_stats <- sentence_dependency_stats %>%
 ```
 
 ```{r}
-#| label: ud_vis
+#| label: fig-ud_vis
+#| fig-cap: "Syntactic Complexity in Gaiman's Works"
 
 # 4. Create visualization of mean dependency length
 dep_length_plot <- ggplot(book_dependency_stats,
@@ -511,7 +564,7 @@ dep_length_plot <- ggplot(book_dependency_stats,
     width = 0.2, color = "#2C528C"
   ) +
   labs(
-    title = "Syntactic Complexity in Gaiman's Works",
+    #title = "Syntactic Complexity in Gaiman's Works",
     subtitle = "Mean dependency length (average distance between related words)",
     x = "Book",
     y = "Mean Dependency Length"
@@ -566,24 +619,26 @@ example_sentences <- bind_rows(
 print(dep_length_plot)
 
 # Print example sentences with book sources
-cat("\nExample sentences illustrating dependency length:\n\n")
+#cat("\nExample sentences illustrating dependency length:\n\n")
+# not very helpful and takes too much space, not use
 
-for(i in 1:nrow(example_sentences)) {
-  cat(paste0(example_sentences$type[i], " (max = ", 
-             round(example_sentences$max_dep[i], 1), 
-             ") from ", example_sentences$title[i], ":\n"))
-  cat(example_sentences$sentence_text[i], "\n\n")
-}
+#for(i in 1:nrow(example_sentences)) {
+  #cat(paste0(example_sentences$type[i], " (max = ", 
+             #round(example_sentences$max_dep[i], 1), 
+             #") from ", example_sentences$title[i], ":\n"))
+  #cat(example_sentences$sentence_text[i], "\n\n")
+#}
 ```
 
 This result is worthy of detailed report.
 
 ##### Readability Analysis
 
+The Flesch-Kincaid Grade Level scores provide standardised readability measurements based on word and sentence characteristics. @fig-readability_score shows these scores across Gaiman's works calculated by `quanteda` [@benoit2018] .
+
 ```{r}
-#| label: readability_score_vis
-# Data-driven Readability Analysis
-# ---------------------------------------
+#| label: fig-readability_score
+#| fig-cap: "Reading Difficulty of Gaiman's Works"
 # Focus solely on Flesch-Kincaid Grade Level without imposing age categories
 
 # 1. Calculate readability scores for each book
@@ -622,7 +677,7 @@ readability_plot <- ggplot(readability_data,
   annotate("text", x = 1, y = 8.2, label = "8th Grade", hjust = 0, size = 3, color = "gray40") +
   annotate("text", x = 1, y = 12.2, label = "12th Grade", hjust = 0, size = 3, color = "gray40") +
   labs(
-    title = "Reading Difficulty of Gaiman's Works",
+    #title = "Reading Difficulty of Gaiman's Works",
     subtitle = "Flesch-Kincaid Grade Level (higher = more difficult reading)",
     x = "Book",
     y = "Reading Grade Level",
@@ -647,16 +702,19 @@ readability_plot <- readability_plot +
 print(readability_plot)
 ```
 
-first report the general pattern then focus on the specific ones. It may be interesting to connect it with UD results above.
+The results demonstrate a unexpected patterns that challenge conventional assumptions about audience targeting. All books are below 8th grade which fits Gaiman's niche as a writer of popular fiction. *American Gods*, often categorised as an adult fiction, scores lower than *The Graveyard Book*, which is tagged as "Middle Grade" and "Young Adult" on goodreads. This suggests that readability scores alone cannot reliably predict audience targeting in Gaiman's work.
+
+This finding is echoed by recent criticism of readability metrics. Tanprasert and Kauchak [@tanprasert2021] argue that "Flesch-Kincaid Grade Level (FKGL) should not be used to evaluate text simplification systems," noting that the score can be easily manipulated with minor textual changes. FKGL formulas primarily rely on surface features such as word and sentence length, while fail to capture semantic complexity, narrative sophistication, thematic maturity, or cultural references that can better differentiate works for different audiences.
 
 ##### Sentiment & Profanity Analysis
 
-I use sentenceR package to conduct sentence-level sentiment analysis
+I use sentimentR package to conduct sentence-level sentiment analysis
 
 1.  sentiment analysis
 
 ```{r}
 #| label: senti_ana_vis
+#| fig-cap: "Sentiment Distribution in Gaiman's Works"
 
 # First, let's set up a simple analysis pipeline
 
@@ -725,7 +783,7 @@ sentiment_distribution_plot <- ggplot(sentiment_long,
     "Neutral" = "#9E9E9E"
   )) +
   labs(
-    title = "Sentiment Distribution in Gaiman's Works",
+    #title = "Sentiment Distribution in Gaiman's Works",
     subtitle = "Percentage of positive, negative, and neutral sentences in each book",
     x = "Book",
     y = "Percentage of Sentences",
@@ -875,8 +933,17 @@ arc_statistics <- normalized_sentiment_flow %>%
 print(arc_statistics)
 ```
 
-2.  Profanity analysis\
-    I use dictionary based approach to detect the occurrence of different swear words in Gaiman's books.
+##### Profanity Analysis
+
+A dictionary-based approach was used to detect and categorise profanity across words. Three categories were established:
+
+-   **mild profanity**: for example, "damn"
+
+-   **moderate profanity**: for example, "ass, shit"
+
+-   **strong profanity**: for example, "fuck, cunt"
+
+The complete list of profanity can be found in Appendix. @fig-swear_analysis shows the frequency of profanity per 1,000 words for each book. The analysis uncover clear differences between adults and children's books. Adult-oriented titles contain substantially more profanity expressions across
 
 ```{r}
 #| label: swear_analysis_calculation
@@ -1013,7 +1080,7 @@ category_plot <- ggplot(profanity_long,
     "Strong" = "#F44336"
   )) +
   labs(
-    title = "Profanity in Gaiman's Works by Intensity Level",
+    #title = "Profanity in Gaiman's Works by Intensity Level",
     subtitle = "Words per 1,000 categorized by severity",
     x = "Book",
     y = "Frequency (per 1,000 words)",
@@ -1097,7 +1164,8 @@ for (book in top_books) {
 ```
 
 ```{r}
-#| label: swear_analysis_vis
+#| label: fig-swear_analysis
+#| fig-cap: "Profanity in Gaiman's Works by Intensity Level"
 
 
 # 10. Display results
