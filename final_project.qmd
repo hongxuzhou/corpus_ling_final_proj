@@ -2,7 +2,6 @@
 title: "Stylistic Variations in Neil Gaiman's Work: A Corpus-Driven Analysis"
 author: "Hongxu Zhou" 
 bibliography: corpus_ling_ref.bib
-cite-method: biblatex
 csl: apa.csl
 ---
 
@@ -71,27 +70,27 @@ To accelerate the calculation and analysis, some basic statistical features are 
 
 ### Corpus
 
-This study exploys a specialised corpus conprising ten books by Neil Gaiman, slected to represent the author's rage across audience demographics. The ten books are:
+This study employs a specialised corpus comprising ten books by Neil Gaiman, selected to represent the author's rage across audience demographics. The ten books are:
 
--   American Gods
+-   American Gods (in short, AG)
 
--   Anansi Boys
+-   Anansi Boys (AB)
 
--   Neverwhere
+-   Neverwhere (NW)
 
--   Smoke and Mirrors
+-   Smoke and Mirrors (SM)
 
--   The Ocean at the End of the Lane
+-   The Ocean at the End of the Lane (OCEAN)
 
--   Coraline
+-   Coraline (CL)
 
--   The Graveyard Book
+-   The Graveyard Book (TGB)
 
--   Fortunately, the Milk
+-   Fortunately, the Milk (FTM)
 
--   Odd and the Frost Giants
+-   Odd and the Frost Giants (OFG)
 
--   Stardust
+-   Stardust (ST)
 
 They span Gaiman's career and represent various genres within his oeuvre. Therefore, this corpus is a balanced representation for analysis of potential stylistic variations.
 
@@ -144,7 +143,7 @@ The lexical analysis examines word-level patterns that might distinguish text fo
 
 ##### Word Length Distribution
 
-Word length often correlates with text complexity — longer words typically appear in more advanced or specialised text [@biber1988]. Figure @fig-word_length_vis presents the percentage of words at each length across Gaiman's works. This visualisation reveals a remarkably consistent pattern across all books, with most words averaging around 4 characters regardless of the intended audience. This suggests that at the the basic word length level, Gaiman maintains a relatively stable style.
+Word length often correlates with text complexity — longer words typically appear in more advanced or specialised text [@biber1988]. @fig-word_length_vis presents the percentage of words at each length across Gaiman's works. This visualisation reveals a remarkably consistent pattern across all books, with most words averaging around 4 characters regardless of the intended audience. This suggests that at the the basic word length level, Gaiman maintains a relatively stable style.
 
 ```{r}
 #| label: word_length_cal
@@ -243,7 +242,7 @@ print(lex_div_plot)
 
 ```
 
-Figure @fig-ttr_visualisation displays the lexical diversity values cross the 10 books. Interestingly, the TTR values do not clearly separate along audience lines. Even, Fortunately, the Milk, a typical picture book for children, has the highest TTR value. This finding may virtually challenge the assumption that books for younger readers use simpler vocabulary. However, it is acknowledged that TTR is sensitive to text length – longer texts naturally tend toward lower TTR values due to necessary repetition of function words and proper names. This limitation suggests the need for additional, more sophisticated linguistic measures beyond basic lexical metrics.
+@fig-ttr_visualisation displays the lexical diversity values cross the 10 books. Interestingly, the TTR values do not clearly separate along audience lines. Even, Fortunately, the Milk, a typical picture book for children, has the highest TTR value. This finding may virtually challenge the assumption that books for younger readers use simpler vocabulary. However, it is acknowledged that TTR is sensitive to text length – longer texts naturally tend toward lower TTR values due to necessary repetition of function words and proper names. This limitation suggests the need for additional, more sophisticated linguistic measures beyond basic lexical metrics.
 
 ```{r}
 #| label: word_frequnecy
@@ -706,233 +705,6 @@ The results demonstrate a unexpected patterns that challenge conventional assump
 
 This finding is echoed by recent criticism of readability metrics. Tanprasert and Kauchak [@tanprasert2021] argue that "Flesch-Kincaid Grade Level (FKGL) should not be used to evaluate text simplification systems," noting that the score can be easily manipulated with minor textual changes. FKGL formulas primarily rely on surface features such as word and sentence length, while fail to capture semantic complexity, narrative sophistication, thematic maturity, or cultural references that can better differentiate works for different audiences.
 
-##### Sentiment & Profanity Analysis
-
-I use sentimentR package to conduct sentence-level sentiment analysis
-
-1.  sentiment analysis
-
-```{r}
-#| label: senti_ana_vis
-#| fig-cap: "Sentiment Distribution in Gaiman's Works"
-
-# First, let's set up a simple analysis pipeline
-
-# 1. Calculate sentence-level sentiment
-sentence_sentiment <- sentiment_by(
-  text.var = sentence_data$text,
-  by = list(
-    book_id = sentence_data$book_id,
-    sentence_id = sentence_data$sentence_id
-  )
-)
-
-# 2. Classify each sentence as positive, negative, or neutral
-sentence_sentiment <- sentence_sentiment %>%
-  mutate(
-    sentiment_class = case_when(
-      ave_sentiment > 0.05 ~ "Positive",
-      ave_sentiment < -0.05 ~ "Negative",
-      TRUE ~ "Neutral"  # Use a small buffer around zero for neutral
-    )
-  )
-
-# 3. Calculate the distribution for each book
-book_sentiment_distribution <- sentence_sentiment %>%
-  group_by(book_id) %>%
-  summarize(
-    total_sentences = n(),
-    positive_count = sum(sentiment_class == "Positive"),
-    negative_count = sum(sentiment_class == "Negative"),
-    neutral_count = sum(sentiment_class == "Neutral"),
-    positive_pct = (positive_count / total_sentences) * 100,
-    negative_pct = (negative_count / total_sentences) * 100,
-    neutral_pct = (neutral_count / total_sentences) * 100
-  )
-
-# 4. Verify our percentages add up to 100%
-book_sentiment_distribution <- book_sentiment_distribution %>%
-  mutate(total_pct = positive_pct + negative_pct + neutral_pct)
-
-# Check results (should be close to 100% for each book)
-print(book_sentiment_distribution[, c("book_id", "total_pct")])
-
-# 5. Create data for visualization
-sentiment_long <- book_sentiment_distribution %>%
-  select(book_id, positive_pct, negative_pct, neutral_pct) %>%
-  pivot_longer(
-    cols = c("positive_pct", "negative_pct", "neutral_pct"),
-    names_to = "sentiment",
-    values_to = "percentage"
-  ) %>%
-  mutate(
-    sentiment = case_when(
-      sentiment == "positive_pct" ~ "Positive",
-      sentiment == "negative_pct" ~ "Negative",
-      sentiment == "neutral_pct" ~ "Neutral"
-    )
-  )
-
-# 6. Create a simple stacked bar chart
-sentiment_distribution_plot <- ggplot(sentiment_long, 
-                                     aes(x = book_id, y = percentage, fill = sentiment)) +
-  geom_col(position = "stack") +
-  scale_fill_manual(values = c(
-    "Positive" = "#4CAF50",
-    "Negative" = "#F44336",
-    "Neutral" = "#9E9E9E"
-  )) +
-  labs(
-    #title = "Sentiment Distribution in Gaiman's Works",
-    subtitle = "Percentage of positive, negative, and neutral sentences in each book",
-    x = "Book",
-    y = "Percentage of Sentences",
-    fill = "Sentiment"
-  ) +
-  theme_minimal() +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    legend.position = "top"
-  ) +
-  # Ensure y-axis goes from 0-100%
-  scale_y_continuous(limits = c(0, 100))
-
-# Display the plot
-print(sentiment_distribution_plot)
-
-# Optional: Generate a summary table for reporting
-sentiment_summary <- book_sentiment_distribution %>%
-  select(book_id, positive_pct, negative_pct, neutral_pct) %>%
-  arrange(desc(positive_pct))
-
-print(sentiment_summary)
-```
-
-```{r}
-#| label: senti_arc_vis
-# Sentiment Flow Analysis
-# This function visualizes how sentiment changes throughout each book's narrative progression
-
-# 1. Calculate sentiment by chapter for each book
-chapter_sentiment <- sentence_sentiment %>%
-  # Join with document information to get chapter numbers
-  left_join(
-    gaiman_corpus$sentence_level %>% 
-      select(book_id, sentence_id, chapter_num) %>% 
-      distinct(),
-    by = c("book_id", "sentence_id")
-  ) %>%
-  # Group by book and chapter to calculate average sentiment
-  group_by(book_id, chapter_num) %>%
-  summarize(
-    chapter_sentiment = mean(ave_sentiment, na.rm = TRUE),
-    sentences_count = n(),
-    .groups = "drop"
-  )
-
-# 2. Calculate normalized position for each chapter within its book
-normalized_sentiment_flow <- chapter_sentiment %>%
-  # Group by book to calculate relative positions
-  group_by(book_id) %>%
-  mutate(
-    # Get the max chapter number for each book
-    max_chapter = max(chapter_num, na.rm = TRUE),
-    # Calculate normalized position (0-100% of narrative)
-    narrative_position = (chapter_num / max_chapter) * 100
-  ) %>%
-  # Get book titles for better labeling
-  left_join(
-    gaiman_corpus$document_level %>% 
-      select(book_id, title) %>% 
-      distinct(),
-    by = "book_id"
-  ) %>%
-  # Make sure we don't have NA values
-  filter(!is.na(chapter_sentiment))
-
-# 3. Create a combined visualization showing all books' arcs
-emotional_arcs_plot <- ggplot(normalized_sentiment_flow,
-                             aes(x = narrative_position,
-                                 y = chapter_sentiment,
-                                 color = book_id)) +
-  # Add smoothed trend lines to see the emotional arc
-  geom_smooth(method = "loess", se = FALSE, span = 0.6, linewidth = 1) +
-  # Add small points for actual chapter sentiments
-  geom_point(alpha = 0.4, size = 1.5) +
-  # Add horizontal reference line at neutral sentiment (0)
-  geom_hline(yintercept = 0, linetype = "dashed", color = "gray50", linewidth = 0.5) +
-  # Add labels
-  labs(
-    title = "Emotional Arcs in Neil Gaiman's Works",
-    subtitle = "Sentiment progression throughout narrative (0% = beginning, 100% = end)",
-    x = "Narrative Progression (%)",
-    y = "Average Sentiment Score",
-    color = "Book"
-  ) +
-  # Use a color palette that distinguishes between books
-  scale_color_brewer(palette = "Paired") +
-  theme_minimal() +
-  theme(
-    legend.position = "right",
-    panel.grid.minor = element_blank()
-  )
-
-# 4. Create a facetted version showing individual book arcs
-individual_arcs_plot <- ggplot(normalized_sentiment_flow,
-                              aes(x = narrative_position,
-                                  y = chapter_sentiment)) +
-  # Add smoothed trend lines to see the emotional arc
-  geom_smooth(method = "loess", se = FALSE, span = 0.6, aes(color = book_id), linewidth = 1) +
-  # Add small points for actual chapter sentiments
-  geom_point(alpha = 0.4, size = 1.5, color = "darkgray") +
-  # Add horizontal reference line at neutral sentiment (0)
-  geom_hline(yintercept = 0, linetype = "dashed", color = "gray50", linewidth = 0.5) +
-  # Facet by book title for individual arcs
-  facet_wrap(~ title, scales = "free_y") +
-  # Add labels
-  labs(
-    title = "Individual Emotional Arcs in Neil Gaiman's Works",
-    subtitle = "Sentiment progression by narrative position for each book",
-    x = "Narrative Progression (%)",
-    y = "Average Sentiment Score"
-  ) +
-  theme_minimal() +
-  theme(
-    legend.position = "none",
-    panel.spacing = unit(1, "lines"),
-    strip.text = element_text(face = "bold"),
-    panel.grid.minor = element_blank()
-  )
-
-# 5. Print both visualizations
-print(emotional_arcs_plot)
-print(individual_arcs_plot)
-
-# 6. Calculate key statistics about the arcs
-arc_statistics <- normalized_sentiment_flow %>%
-  group_by(book_id, title) %>%
-  summarize(
-    start_sentiment = first(chapter_sentiment),
-    end_sentiment = last(chapter_sentiment),
-    min_sentiment = min(chapter_sentiment),
-    max_sentiment = max(chapter_sentiment),
-    sentiment_range = max_sentiment - min_sentiment,
-    overall_trend = end_sentiment - start_sentiment,
-    .groups = "drop"
-  ) %>%
-  mutate(
-    arc_type = case_when(
-      overall_trend > 0.05 ~ "Rising (positive resolution)",
-      overall_trend < -0.05 ~ "Falling (negative resolution)",
-      TRUE ~ "Neutral/Circular"
-    )
-  ) %>%
-  arrange(desc(overall_trend))
-
-# 7. Print summary statistics
-print(arc_statistics)
-```
-
 ##### Profanity Analysis
 
 A dictionary-based approach was used to detect and categorise profanity across words. Three categories were established:
@@ -943,7 +715,7 @@ A dictionary-based approach was used to detect and categorise profanity across w
 
 -   **strong profanity**: for example, "fuck, cunt"
 
-The complete list of profanity can be found in Appendix. @fig-swear_analysis shows the frequency of profanity per 1,000 words for each book. The analysis uncover clear differences between adults and children's books. Adult-oriented titles contain substantially more profanity expressions across
+The complete list of profanity can be found in Appendix. @fig-swear_analysis shows the frequency of profanity per 1,000 words for each book.
 
 ```{r}
 #| label: swear_analysis_calculation
@@ -1167,8 +939,6 @@ for (book in top_books) {
 #| label: fig-swear_analysis
 #| fig-cap: "Profanity in Gaiman's Works by Intensity Level"
 
-
-# 10. Display results
 print(category_plot)
 
 
@@ -1186,6 +956,10 @@ print(profanity_categories %>%
 
 ```{r}
 #| label: swear_analysis_examples
+#| message: false
+#| warning: false
+#| include: false
+#| paged-print: false
 # 11. Print examples with category context
 cat("\nExamples of profanity by category from top books:\n\n")
 for (book in top_books) {
@@ -1226,103 +1000,254 @@ for (book in top_books) {
   
   cat("\n")
 }
+# No there is no space for these much examples
 ```
 
-I am not sure about how to report this part. Sentiment and profanity analysis provide most intuitive results for differentiating age groups. But They rely on strong examples to be persuasive, which can be redundant and lengthy. So, the visualisations will be kept, but the structure and content of this part need to be carefully considered.
+The data reveals notatble variations in profanity usage across Gaiman corpus. *American Gods* shows the highest overall profanity rate (2.28 per 1,000 words), followed by *Smoke and Mirrors* (1.32 per 1,000 words), and *Neverwhere* (1.02). At the lower end, *Fortunately, the Milk* (0.13)*, Coraline* (0.19)*,* and *The Ocean at the End of the Lane* (0.24) contain minimal profanity. The figure also indicates the frequency and intensity of profanity are positively associated. The patterns of profanity distribution directly reflect the features that can influence demographic targeting such as thematic concerns, narrative tone, and publication context.
 
-#### Discourse level
+##### Sentiment Analysis 
 
-##### Point of View analysis
+I calculated sentence-level sentiment variation by `sentimentr` [@tylerw2021]. @fig-senti_dist shows the sentiment distribution across books.
 
 ```{r}
-#| label: pov_dist
-# Function to analyze POV markers in text
-analyze_pov <- function(text) {
-  # Define POV marker patterns
-  first_person <- "\\b(I|me|my|mine|myself|we|us|our|ours|ourselves)\\b"
-  second_person <- "\\b(you|your|yours|yourself|yourselves)\\b"
-  third_person_m <- "\\b(he|him|his|himself)\\b"
-  third_person_f <- "\\b(she|her|hers|herself)\\b"
-  third_person_n <- "\\b(it|its|itself)\\b"
-  third_person_p <- "\\b(they|them|their|theirs|themselves)\\b"
-  
-  # Count matches (case insensitive)
-  first <- str_count(tolower(text), first_person)
-  second <- str_count(tolower(text), second_person)
-  third_m <- str_count(tolower(text), third_person_m)
-  third_f <- str_count(tolower(text), third_person_f)
-  third_n <- str_count(tolower(text), third_person_n)
-  third_p <- str_count(tolower(text), third_person_p)
-  
-  # Calculate totals
-  first_total <- first
-  second_total <- second
-  third_total <- third_m + third_f + third_n + third_p
-  
-  # Return counts
-  return(c(
-    first_person = first_total,
-    second_person = second_total,
-    third_person = third_total,
-    third_male = third_m,
-    third_female = third_f,
-    third_neutral = third_n,
-    third_plural = third_p
-  ))
-}
+#| label: fig-senti_dist
+#| fig-cap: "Sentiment Distribution in Gaiman's Works"
 
-# Apply to book texts
-pov_results <- book_texts %>%
-  rowwise() %>%
-  mutate(pov_data = list(analyze_pov(text))) %>%
-  ungroup() %>%
-  mutate(
-    first_person = map_dbl(pov_data, ~ .x["first_person"]),
-    second_person = map_dbl(pov_data, ~ .x["second_person"]),
-    third_person = map_dbl(pov_data, ~ .x["third_person"]),
-    third_male = map_dbl(pov_data, ~ .x["third_male"]),
-    third_female = map_dbl(pov_data, ~ .x["third_female"]),
-    third_neutral = map_dbl(pov_data, ~ .x["third_neutral"]),
-    third_plural = map_dbl(pov_data, ~ .x["third_plural"]),
-    total_words = str_count(text, "\\S+"),
-    # Calculate percentages
-    first_pct = first_person / total_words * 100,
-    second_pct = second_person / total_words * 100,
-    third_pct = third_person / total_words * 100
-  ) %>%
-  select(-pov_data, -text)
+# First, let's set up a simple analysis pipeline
 
-# Visualize POV distribution
-pov_long <- pov_results %>%
-  select(book_id, first_pct, second_pct, third_pct) %>%
-  pivot_longer(
-    cols = c(first_pct, second_pct, third_pct),
-    names_to = "pov",
-    values_to = "percentage"
-  ) %>%
+# 1. Calculate sentence-level sentiment
+sentence_sentiment <- sentiment_by(
+  text.var = sentence_data$text,
+  by = list(
+    book_id = sentence_data$book_id,
+    sentence_id = sentence_data$sentence_id
+  )
+)
+
+# 2. Classify each sentence as positive, negative, or neutral
+sentence_sentiment <- sentence_sentiment %>%
   mutate(
-    pov = case_when(
-      pov == "first_pct" ~ "First Person",
-      pov == "second_pct" ~ "Second Person",
-      pov == "third_pct" ~ "Third Person"
+    sentiment_class = case_when(
+      ave_sentiment > 0.05 ~ "Positive",
+      ave_sentiment < -0.05 ~ "Negative",
+      TRUE ~ "Neutral"  # Use a small buffer around zero for neutral
     )
   )
 
-pov_plot <- ggplot(pov_long, 
-                  aes(x = book_id, y = percentage, fill = pov)) +
-  geom_bar(stat = "identity", position = "dodge") +
+# 3. Calculate the distribution for each book
+book_sentiment_distribution <- sentence_sentiment %>%
+  group_by(book_id) %>%
+  summarize(
+    total_sentences = n(),
+    positive_count = sum(sentiment_class == "Positive"),
+    negative_count = sum(sentiment_class == "Negative"),
+    neutral_count = sum(sentiment_class == "Neutral"),
+    positive_pct = (positive_count / total_sentences) * 100,
+    negative_pct = (negative_count / total_sentences) * 100,
+    neutral_pct = (neutral_count / total_sentences) * 100
+  )
+
+# 4. Verify our percentages add up to 100%
+book_sentiment_distribution <- book_sentiment_distribution %>%
+  mutate(total_pct = positive_pct + negative_pct + neutral_pct)
+
+# Check results (should be close to 100% for each book)
+print(book_sentiment_distribution[, c("book_id", "total_pct")])
+
+# 5. Create data for visualization
+sentiment_long <- book_sentiment_distribution %>%
+  select(book_id, positive_pct, negative_pct, neutral_pct) %>%
+  pivot_longer(
+    cols = c("positive_pct", "negative_pct", "neutral_pct"),
+    names_to = "sentiment",
+    values_to = "percentage"
+  ) %>%
+  mutate(
+    sentiment = case_when(
+      sentiment == "positive_pct" ~ "Positive",
+      sentiment == "negative_pct" ~ "Negative",
+      sentiment == "neutral_pct" ~ "Neutral"
+    )
+  )
+
+# 6. Create a simple stacked bar chart
+sentiment_distribution_plot <- ggplot(sentiment_long, 
+                                     aes(x = book_id, y = percentage, fill = sentiment)) +
+  geom_col(position = "stack") +
+  scale_fill_manual(values = c(
+    "Positive" = "#4CAF50",
+    "Negative" = "#F44336",
+    "Neutral" = "#9E9E9E"
+  )) +
   labs(
-    title = "Point of View Distribution by Book",
-    subtitle = "Percentage of personal pronouns by category",
+    #title = "Sentiment Distribution in Gaiman's Works",
+    subtitle = "Percentage of positive, negative, and neutral sentences in each book",
     x = "Book",
-    y = "Percentage of Total Words",
-    fill = "Point of View"
+    y = "Percentage of Sentences",
+    fill = "Sentiment"
   ) +
   theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "top"
+  ) +
+  # Ensure y-axis goes from 0-100%
+  scale_y_continuous(limits = c(0, 100))
 
-print(pov_plot)
+# Display the plot
+print(sentiment_distribution_plot)
+
+# Optional: Generate a summary table for reporting
+sentiment_summary <- book_sentiment_distribution %>%
+  select(book_id, positive_pct, negative_pct, neutral_pct) %>%
+  arrange(desc(positive_pct))
+
+print(sentiment_summary)
 ```
+
+The analysis demonstrates considerable consistency in sentiment distribution across Gaiman's works. Most books maintain a similar balance of emotional content (approximately 23 - 31% positive, 18 - 27% negative, and 43 - 52% neutral). *Odd and the Frost Giants* shows the highest proportion of negative sentences (33.45%) while *Stardust* shows the highest proportion of positive sentences (31%).
+
+The emotional arcs — how sentiment progresses through the narrative – show some variation. @fig-senti_arc illustrates these emotional trajectories. *Smoke and Mirrors* (SM) shows the highest sentiment range (0.46 with starting sentiment at -0.03 and ends at 0.23). However, this pattern likely stems from its nature as collection of short stories rather than representing a stylistic choice related to audience targeting. In general the sentiment arcs of the ten books vary from -0.23 to 0.24. The overall stable sentiment distribution across works suggests that one the one hand, Gaiman maintains a consistent emotional palette regardless of intended readership; on the other hand, `sentimentr`, as a dictionary-based approach, may fail to catch some subtle sentiments such as irony and satire. Unlike profanity usage and syntactic complexity, sentiment patterns do not appear to correlate meaningfully with potential audience demographics.
+
+In sentence-level analysis, profanity usage appears to be the most distinctive content-based marker, with clear patterns of variation across different works. They create groupings that partially but not perfectly align with traditional audience categorisations. The sentence-level features provides more nuanced insights than lexical analysis alone, suggesting that Gaiman's stylistic adaptations for different audiences operate more at the structural and content-appropriateness levels than through vocabulary simplification. The findings so far pave the way to examine discourse-level patterns to develop a more comprehensive understanding of potential audience-based stylistic variations.
+
+```{r}
+#| label: fig-senti_arc
+#| fig-cap: "Emotional Arcs in Neil Gaiman's Works" 
+# Sentiment Flow Analysis
+# This function visualizes how sentiment changes throughout each book's narrative progression
+
+# 1. Calculate sentiment by chapter for each book
+chapter_sentiment <- sentence_sentiment %>%
+  # Join with document information to get chapter numbers
+  left_join(
+    gaiman_corpus$sentence_level %>% 
+      select(book_id, sentence_id, chapter_num) %>% 
+      distinct(),
+    by = c("book_id", "sentence_id")
+  ) %>%
+  # Group by book and chapter to calculate average sentiment
+  group_by(book_id, chapter_num) %>%
+  summarize(
+    chapter_sentiment = mean(ave_sentiment, na.rm = TRUE),
+    sentences_count = n(),
+    .groups = "drop"
+  )
+
+# 2. Calculate normalized position for each chapter within its book
+normalized_sentiment_flow <- chapter_sentiment %>%
+  # Group by book to calculate relative positions
+  group_by(book_id) %>%
+  mutate(
+    # Get the max chapter number for each book
+    max_chapter = max(chapter_num, na.rm = TRUE),
+    # Calculate normalized position (0-100% of narrative)
+    narrative_position = (chapter_num / max_chapter) * 100
+  ) %>%
+  # Get book titles for better labeling
+  left_join(
+    gaiman_corpus$document_level %>% 
+      select(book_id, title) %>% 
+      distinct(),
+    by = "book_id"
+  ) %>%
+  # Make sure we don't have NA values
+  filter(!is.na(chapter_sentiment))
+
+# 3. Create a combined visualization showing all books' arcs
+emotional_arcs_plot <- ggplot(normalized_sentiment_flow,
+                             aes(x = narrative_position,
+                                 y = chapter_sentiment,
+                                 color = book_id)) +
+  # Add smoothed trend lines to see the emotional arc
+  geom_smooth(method = "loess", se = FALSE, span = 0.6, linewidth = 1) +
+  # Add small points for actual chapter sentiments
+  geom_point(alpha = 0.4, size = 1.5) +
+  # Add horizontal reference line at neutral sentiment (0)
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray50", linewidth = 0.5) +
+  # Add labels
+  labs(
+    #title = "Emotional Arcs in Neil Gaiman's Works",
+    subtitle = "Sentiment progression throughout narrative (0% = beginning, 100% = end)",
+    x = "Narrative Progression (%)",
+    y = "Average Sentiment Score",
+    color = "Book"
+  ) +
+  # Use a color palette that distinguishes between books
+  scale_color_brewer(palette = "Paired") +
+  theme_minimal() +
+  theme(
+    legend.position = "right",
+    panel.grid.minor = element_blank()
+  )
+
+# 4. Create a facetted version showing individual book arcs
+individual_arcs_plot <- ggplot(normalized_sentiment_flow,
+                              aes(x = narrative_position,
+                                  y = chapter_sentiment)) +
+  # Add smoothed trend lines to see the emotional arc
+  geom_smooth(method = "loess", se = FALSE, span = 0.6, aes(color = book_id), linewidth = 1) +
+  # Add small points for actual chapter sentiments
+  geom_point(alpha = 0.4, size = 1.5, color = "darkgray") +
+  # Add horizontal reference line at neutral sentiment (0)
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray50", linewidth = 0.5) +
+  # Facet by book title for individual arcs
+  facet_wrap(~ title, scales = "free_y") +
+  # Add labels
+  labs(
+    title = "Individual Emotional Arcs in Neil Gaiman's Works",
+    subtitle = "Sentiment progression by narrative position for each book",
+    x = "Narrative Progression (%)",
+    y = "Average Sentiment Score"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    panel.spacing = unit(1, "lines"),
+    strip.text = element_text(face = "bold"),
+    panel.grid.minor = element_blank()
+  )
+
+# 5. Print both visualizations
+print(emotional_arcs_plot)
+print(individual_arcs_plot)
+
+# 6. Calculate key statistics about the arcs
+arc_statistics <- normalized_sentiment_flow %>%
+  group_by(book_id, title) %>%
+  summarize(
+    start_sentiment = first(chapter_sentiment),
+    end_sentiment = last(chapter_sentiment),
+    min_sentiment = min(chapter_sentiment),
+    max_sentiment = max(chapter_sentiment),
+    sentiment_range = max_sentiment - min_sentiment,
+    overall_trend = end_sentiment - start_sentiment,
+    .groups = "drop"
+  ) %>%
+  mutate(
+    arc_type = case_when(
+      overall_trend > 0.05 ~ "Rising (positive resolution)",
+      overall_trend < -0.05 ~ "Falling (negative resolution)",
+      TRUE ~ "Neutral/Circular"
+    )
+  ) %>%
+  arrange(desc(overall_trend))
+
+# 7. Print summary statistics
+print(arc_statistics)
+```
+
+#### Discourse level
+
+After examining word- and sentence-level patterns, this section moves further by exploring discourse-level characteristics in Gaiman's work. It focuses on how textual elements function together to create meaning across larger units of text. In literature stylistics, discourse features often reveal how authors construct narrative voice, manage perspective, and guide reader engagement – all of which may differ based on intended readership.
+
+##### Point of View analysis
+
+Point of view (POV) represents a fundamental aspect of narrative discourse. The analysis tracked personal pronoun usage across the 10 books in the corpus to identify patterns in narrative perspective. @fig-pov_composition shows the composition of first (I/me), second (you), and third (she/he/they) pronouns as percentages of total words across the corpus.
+
+Books like *Fortunately, the Milk* (FTM) and *The Ocean at the End of the Lane* (OCEAN) show higher rates of first-person narration compared to books like *American Gods* (AM), *Coraline* (CL), and *Neverwhere* (NW). This suggest that POV alone is not a feature differentiating the target audience group of a book.
+
+Perspective stability analysis, on the other hand, reveals clearer patterns that may related to audience considerations. @fig-pov_stable displays the narrative perspective stability index. It measures how consistently each book maintains its dominant perspective without shifts. Books generally considered appropriate for younger readers (FTM and OFG) show higher stability indices (0.72 - 0.8), while books aimed at older audiences (AG, AB) demonstrate more perspective shifting (0.53 - 0.58). However, ST, a books that usually considered for young adults, has the highest shifting score.
 
 ```{r}
 #| label: pov_shift_analysis
@@ -1406,7 +1331,8 @@ pov_stability <- pov_stability %>%
 ```
 
 ```{r}
-#| label: pov_stable_vis
+#| label: fig-pov_stable
+#| fig-cap: "Narrative Perspective Stability in Gaiman's Works"
 # Create perspective stability visualization
 stability_plot <- ggplot(pov_stability, 
                         aes(x = reorder(book_id, stability_index),
@@ -1415,7 +1341,7 @@ stability_plot <- ggplot(pov_stability,
   geom_text(aes(label = sprintf("%.2f", stability_index)), 
             vjust = -0.5, size = 3) +
   labs(
-    title = "Narrative Perspective Stability in Gaiman's Works",
+    #title = "Narrative Perspective Stability in Gaiman's Works",
     subtitle = "Higher values indicate more consistent perspective throughout the work",
     x = "Book",
     y = "Perspective Stability Index"
@@ -1430,7 +1356,8 @@ print(stability_plot)
 ```
 
 ```{r}
-#| label: pov_composition_vis
+#| label: fig-pov_composition
+#| fig-cap: "Narrative Perspective Composition in Gaiman's Works"
 # Create perspective composition visualization
 composition_data <- pov_stability %>%
   select(book_id, pct_first, pct_second, pct_third) %>%
@@ -1456,7 +1383,7 @@ composition_plot <- ggplot(composition_data,
                                "Second Person" = "#FFB74D",
                                "Third Person" = "#81C784")) +
   labs(
-    title = "Narrative Perspective Composition in Gaiman's Works",
+    #title = "Narrative Perspective Composition in Gaiman's Works",
     subtitle = "Percentage of narrative told in each perspective",
     x = "Book",
     y = "Percentage",
@@ -1468,9 +1395,21 @@ composition_plot <- ggplot(composition_data,
 print(composition_plot)
 ```
 
-I am not sure if I should keep all three visualisations in the POV analysis section. I think the first and third ones are bit overlapped. Also, I don't know what should be the key observation to report in this part.
-
 ##### Modal verbs analysis
+
+Based on the framework of modal grammar [@simpson2003], I categorised modal verbs into four functional groups:
+
+1.  **World Building** (must, should, have to, always, never): These establish rules, obligations, and certainties within the narrative world.
+
+2.  **Possibility** (may, might, could, can, maybe): These express uncertainty and potential options.
+
+3.  **Hypothetical** (would, if, whether): These create conditional or speculative scenarios.
+
+4.  **Intent** (will, shall, going to, want to): These signal future actions and determinations.
+
+The complete list can be found in Appendix
+
+As @fig-modal_verb shows, *Fortunately, the Milk* (FTM) stands out with a distinctly high authority ratio (0.96), substantially higher than all other books which range between 0.42-0.53. This further challenges the attempt to categorise a work into a dichotomy of children/adults literature based on linguistic features alone. In fact, books like *Coraline* (0.45) and *The Graveyard Book* (0.45) have authority ratios comparable to or even lower than typically presumed adult-oriented works like *American Gods* (0.53) and *Smoke and Mirrors* (0.53).
 
 ```{r}
 #| label: mocal_verb_cal
@@ -1536,7 +1475,8 @@ modal_results <- book_texts %>%
 ```
 
 ```{r}
-#| label: modal_verb_vis
+#| label: fig-modal_verb
+#| fig-cap: "Modal Verb Usage by Narrative Function"
 # Get book titles for visualization
 modal_results <- modal_results %>%
   left_join(
@@ -1590,7 +1530,8 @@ print(modal_plot)
 ```
 
 ```{r}
-#| label: authority_vis
+#| label: fig-authority
+#| fig-cap: "Narrative Voice Authority in Gaiman's Works"
 # Authority ratio visualization
 authority_plot <- ggplot(modal_results,
                         aes(x = reorder(book_id, authority_ratio),
@@ -1599,7 +1540,7 @@ authority_plot <- ggplot(modal_results,
   geom_text(aes(label = sprintf("%.2f", authority_ratio)), 
             vjust = -0.5, size = 3) +
   labs(
-    title = "Narrative Voice Authority in Gaiman's Works",
+    #title = "Narrative Voice Authority in Gaiman's Works",
     subtitle = "Ratio of authoritative modals (world-building + intent) to uncertain modals (possibility + hypothetical)",
     x = "Book",
     y = "Authority Ratio"
@@ -1612,7 +1553,9 @@ authority_plot <- ggplot(modal_results,
 print(authority_plot)
 ```
 
-The modal verb analysis has the similar problem with POV analysis. I think the first visulasation, the distribution of modal verb categories, is more about descriptive, while the narrative voice authority might be of more values.
+This finding suggests that modal usage in Gaiman's work does not neatly align with presumed audience demographics. The exceptional authority ratio in *Fortunately, the Milk* may reflect its unique status as a humorous children's picture book rather than representing a general pattern for all children's literature. The similarity in authority ratios across most other books indicates that Gaiman maintains a relatively consistent approach to modal expression regardless of intended audience.
+
+This pattern nuances our understanding of Gaiman's style, suggesting that while certain discourse features (like perspective stability) may vary with audience, others (like modal authority) remain more consistent across his work, with specific exceptions for particular narrative contexts.
 
 #### Integrated Analysis
 
@@ -1763,5 +1706,3 @@ The result of PCA, especially the spectrum, should be a highlight of analysis an
 ### Discussion
 
 ### Conclusion
-
-### Reference
