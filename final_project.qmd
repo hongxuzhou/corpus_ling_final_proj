@@ -1,13 +1,18 @@
 ---
 title: "Stylistic Variations in Neil Gaiman's Work: A Corpus-Driven Analysis"
 author: "Hongxu Zhou" 
+format: 
+    pdf:
+        toc: true
+        number-sections: true
+        reference-location: document 
 bibliography: corpus_ling_ref.bib
 csl: apa.csl
 ---
 
-## Abstract
+# Abstract
 
-## Introduction
+# Introduction
 
 As a prominent contemporary author, Neil Gaiman has produced a substantial body of work spanning diverse genres and targeting audiences ranging from children to adults. This project employs corpus-driven methods to analyse potential stylistic variations in Gaiman's writing that may distinguish works intended for different reader demographics. Through systematic linguistic analysis, the study aims to identify and characterize textual features that differentiate Gaiman's writing across audience-targeted works.
 
@@ -37,6 +42,7 @@ library(factoextra)
 
 ```{r}
 #| label: corpus_loading
+#| include: false
 
 # Read the corpus
 gaiman_corpus <- readRDS(here("corpora", "gaiman_corpus_complete.rds"))
@@ -52,7 +58,7 @@ The corpus contains three levels of the texts: document-level (tokenised by chap
 \
 To accelerate the calculation and analysis, some basic statistical features are calculated beforehand and added to the corpus as the layers of Metadata and Vocabulary.
 
-## Literature Review
+# Literature Review
 
 -   Previous corpus-based studies on stylistic variation in fiction
 
@@ -66,9 +72,9 @@ To accelerate the calculation and analysis, some basic statistical features are 
 
     1.  What linguistic features differentiate Gaiman's writing across audience demographics?
 
-## Methodology
+# Methodology
 
-### Corpus
+## Corpus
 
 This study employs a specialised corpus comprising ten books by Neil Gaiman, selected to represent the author's rage across audience demographics. The ten books are:
 
@@ -135,13 +141,13 @@ corpus_summary <- book_metadata |>
 print(corpus_summary)
 ```
 
-### Analysis
+## Analysis
 
-#### lexical level
+### lexical level
 
 The lexical analysis examines word-level patterns that might distinguish text for different audience groups. I analysed word length distribution, lexical diversity, and distinctive vocabulary to investigate potential stylistic variations.
 
-##### Word Length Distribution
+#### Word Length Distribution
 
 Word length often correlates with text complexity — longer words typically appear in more advanced or specialised text [@biber1988]. @fig-word_length_vis presents the percentage of words at each length across Gaiman's works. This visualisation reveals a remarkably consistent pattern across all books, with most words averaging around 4 characters regardless of the intended audience. This suggests that at the the basic word length level, Gaiman maintains a relatively stable style.
 
@@ -149,6 +155,7 @@ Word length often correlates with text complexity — longer words typically app
 #| label: word_length_cal
 #| message: false
 #| warning: false
+#| include: false
 #| paged-print: false
 # Calculate word length for all tokens
 token_length <- gaiman_corpus$token_level |> 
@@ -175,7 +182,8 @@ print(word_lengh_stats)
 
 ```{r}
 #| label: fig-word_length_vis
-#| fig-cap: "Word Length Distribution by Book"
+#| echo: false
+#| fig-cap: Word Length Distribution by Book
 word_lengh_dist <- token_length |> 
   # Count occurrences of each word length in each book 
   count(book_id, word_length) |> 
@@ -203,7 +211,7 @@ word_lengh_dist <- token_length |>
 print(word_lengh_dist)
 ```
 
-##### Lexical Diversity
+#### Lexical Diversity
 
 Lexical diversity is measured using the type-token ratio (TTR), which represents vocabulary richness:
 
@@ -213,7 +221,8 @@ $$
 
 ```{r}
 #| label: fig-ttr_visualisation
-#| fig-cap: "Lexical Diversity by Book"
+#| echo: false
+#| fig-cap: Lexical Diversity by Book
 # Lexical diversity is already stored in the corpus, so we just need to visulaise it 
 lex_div_plot <- ggplot(book_metadata, 
                       aes(x = reorder(book_id, lexical_diversity), 
@@ -274,6 +283,7 @@ print(top_words_plot)
 
 ```{r}
 #| label: quanteda_loading
+#| include: false
 # Create a corpus from the document level data
 quanteda_corpus <- corpus(
   gaiman_corpus$document_level$text,
@@ -287,12 +297,13 @@ docvars(quanteda_corpus, "chapter_num") <- gaiman_corpus$document_level$chapter_
 
 ```
 
-##### Keyword analysis
+#### Keyword analysis
 
 To identify vocabulary patterns distinctive to each book, I use a log-odds ratio analysis to compare word frequencies within each book against the rest of the corpus.
 
 ```{r}
 #| label: log_off_cal
+#| include: false
 # Log odds function to compare one book against all others
 # This identifies distinctive words in each book compared to other books
 calculate_log_odds <- function(dfm_obj, target_book) {
@@ -361,6 +372,7 @@ keywords_df <- bind_rows(all_keywords)
 
 ```{r}
 #| label: fig-log_off_keywords
+#| echo: false
 #| fig-cap: Top 10 Keywords by Book
 # Visualize top 10 keywords for each book
 top_keywords_plot <- keywords_df %>%
@@ -390,14 +402,15 @@ print(top_keywords_plot)
 
 The lexical results suggest that Gaiman does not significantly simplify his vocabulary for younger readers. This finding may contraindicate conventional assumptions about children's literature. The unexpected pattern prompts to look beyond word-level features toward sentence structure and complexity, where more pronounced stylistic variations might emerge.
 
-#### Sentence Level
+### Sentence Level
 
 The sentence level analysis provides deeper insights into the stylistic variation in the corpus than word-level features alone. Based on sentence structure analysis, I examine complexity, readability and content characteristics across different works.
 
-##### Sentence length analysis
+#### Sentence length analysis
 
 ```{r}
 #| label: sent_loading
+#| include: false
 
 # Prepare sentence data
 sentence_data <- gaiman_corpus$sentence_level %>%
@@ -406,7 +419,8 @@ sentence_data <- gaiman_corpus$sentence_level %>%
 
 ```{r}
 #| label: fig-sentent_length_dist_vis
-#| fig-cap: "Sentence Length Distribution by Book"
+#| echo: false
+#| fig-cap: Sentence Length Distribution by Book
 # Calculate sentence length statistics
 sentence_length_stats <- sentence_data %>%
   # Add sentence length in words
@@ -447,7 +461,7 @@ print(sentence_length_vis)
 
 As a fundamental metric, sentence length offers initial insights into text complexity. @fig-sentent_length_dist_vis displays the distribution of sentence lengths across Gaiman's books. While all of them show similar central tendencies with peaks around 7-12 words per sentence, *Fortunately, the Milk* and *Odd and the Frost Giants* display narrower distributions with fewer long sentences. The more controlled sentence length variance suggests that they are more likely for children, though the differences are subtle and require deeper syntactic analysis.
 
-##### Syntactic Complexity
+#### Syntactic Complexity
 
 Syntactic complexity is measured through dependency parsing, which captures the relationships between words in a sentence. Mean dependency length (MDL) is a method that calculates the average distance between syntactically related words. It represents language comprehension difficulty [@haitaoliu2008]. Higher MDL values indicate more complex sentence structures, for example, with embedded or non-adjacent relationships.
 
@@ -455,6 +469,7 @@ This analysis sampled 100 sentences from each book and parsed them using the Uni
 
 ```{r}
 #| label: ud_cal
+#| include: false
 
 
 # 1. Function to calculate mean dependency length for parsed text
@@ -548,7 +563,9 @@ book_dependency_stats <- sentence_dependency_stats %>%
 
 ```{r}
 #| label: fig-ud_vis
-#| fig-cap: "Syntactic Complexity in Gaiman's Works"
+#| echo: false
+#| warning: false
+#| fig-cap: Syntactic Complexity in Gaiman's Works
 
 # 4. Create visualization of mean dependency length
 dep_length_plot <- ggplot(book_dependency_stats,
@@ -631,13 +648,14 @@ print(dep_length_plot)
 
 This result is worthy of detailed report.
 
-##### Readability Analysis
+#### Readability Analysis
 
 The Flesch-Kincaid Grade Level scores provide standardised readability measurements based on word and sentence characteristics. @fig-readability_score shows these scores across Gaiman's works calculated by `quanteda` [@benoit2018] .
 
 ```{r}
 #| label: fig-readability_score
-#| fig-cap: "Reading Difficulty of Gaiman's Works"
+#| echo: false
+#| fig-cap: Reading Difficulty of Gaiman's Works
 # Focus solely on Flesch-Kincaid Grade Level without imposing age categories
 
 # 1. Calculate readability scores for each book
@@ -705,7 +723,7 @@ The results demonstrate a unexpected patterns that challenge conventional assump
 
 This finding is echoed by recent criticism of readability metrics. Tanprasert and Kauchak [@tanprasert2021] argue that "Flesch-Kincaid Grade Level (FKGL) should not be used to evaluate text simplification systems," noting that the score can be easily manipulated with minor textual changes. FKGL formulas primarily rely on surface features such as word and sentence length, while fail to capture semantic complexity, narrative sophistication, thematic maturity, or cultural references that can better differentiate works for different audiences.
 
-##### Profanity Analysis
+#### Profanity Analysis
 
 A dictionary-based approach was used to detect and categorise profanity across words. Three categories were established:
 
@@ -719,6 +737,7 @@ The complete list of profanity can be found in Appendix. @fig-swear_analysis sho
 
 ```{r}
 #| label: swear_analysis_calculation
+#| include: false
 
 # 2. Define categorized profanity dictionaries
 # Expanded lists with more comprehensive coverage
@@ -937,7 +956,8 @@ for (book in top_books) {
 
 ```{r}
 #| label: fig-swear_analysis
-#| fig-cap: "Profanity in Gaiman's Works by Intensity Level"
+#| echo: false
+#| fig-cap: Profanity in Gaiman's Works by Intensity Level
 
 print(category_plot)
 
@@ -946,7 +966,7 @@ print(category_plot)
 
 ```{r}
 #| label: swear_analysis_stats
-#| 
+#| include: false
 # Print category statistics
 cat("\nProfanity statistics by category and book:\n")
 print(profanity_categories %>% 
@@ -1005,12 +1025,16 @@ for (book in top_books) {
 
 The data reveals notatble variations in profanity usage across Gaiman corpus. *American Gods* shows the highest overall profanity rate (2.28 per 1,000 words), followed by *Smoke and Mirrors* (1.32 per 1,000 words), and *Neverwhere* (1.02). At the lower end, *Fortunately, the Milk* (0.13)*, Coraline* (0.19)*,* and *The Ocean at the End of the Lane* (0.24) contain minimal profanity. The figure also indicates the frequency and intensity of profanity are positively associated. The patterns of profanity distribution directly reflect the features that can influence demographic targeting such as thematic concerns, narrative tone, and publication context.
 
-##### Sentiment Analysis 
+#### Sentiment Analysis 
 
 I calculated sentence-level sentiment variation by `sentimentr` [@tylerw2021]. @fig-senti_dist shows the sentiment distribution across books.
 
 ```{r}
 #| label: fig-senti_dist
+#| echo: false
+#| message: false
+#| warning: false
+#| results: hide
 #| fig-cap: "Sentiment Distribution in Gaiman's Works"
 
 # First, let's set up a simple analysis pipeline
@@ -1113,7 +1137,9 @@ In sentence-level analysis, profanity usage appears to be the most distinctive c
 
 ```{r}
 #| label: fig-senti_arc
-#| fig-cap: "Emotional Arcs in Neil Gaiman's Works" 
+#| echo: false
+#| fig-cap: Emotional Arcs in Neil Gaiman's Works
+#| results: hide
 # Sentiment Flow Analysis
 # This function visualizes how sentiment changes throughout each book's narrative progression
 
@@ -1210,7 +1236,7 @@ individual_arcs_plot <- ggplot(normalized_sentiment_flow,
 
 # 5. Print both visualizations
 print(emotional_arcs_plot)
-print(individual_arcs_plot)
+#print(individual_arcs_plot) no need for reporting
 
 # 6. Calculate key statistics about the arcs
 arc_statistics <- normalized_sentiment_flow %>%
@@ -1237,11 +1263,11 @@ arc_statistics <- normalized_sentiment_flow %>%
 print(arc_statistics)
 ```
 
-#### Discourse level
+### Discourse level
 
 After examining word- and sentence-level patterns, this section moves further by exploring discourse-level characteristics in Gaiman's work. It focuses on how textual elements function together to create meaning across larger units of text. In literature stylistics, discourse features often reveal how authors construct narrative voice, manage perspective, and guide reader engagement – all of which may differ based on intended readership.
 
-##### Point of View analysis
+#### Point of View analysis
 
 Point of view (POV) represents a fundamental aspect of narrative discourse. The analysis tracked personal pronoun usage across the 10 books in the corpus to identify patterns in narrative perspective. @fig-pov_composition shows the composition of first (I/me), second (you), and third (she/he/they) pronouns as percentages of total words across the corpus.
 
@@ -1251,6 +1277,8 @@ Perspective stability analysis, on the other hand, reveals clearer patterns that
 
 ```{r}
 #| label: pov_shift_analysis
+#| echo: false
+#| warning: false
  # POV Stability Analysis (Window-based approach)
 # ---------------------------------------
 
@@ -1332,7 +1360,9 @@ pov_stability <- pov_stability %>%
 
 ```{r}
 #| label: fig-pov_stable
-#| fig-cap: "Narrative Perspective Stability in Gaiman's Works"
+#| echo: false
+#| message: false
+#| fig-cap: Narrative Perspective Stability in Gaiman's Works
 # Create perspective stability visualization
 stability_plot <- ggplot(pov_stability, 
                         aes(x = reorder(book_id, stability_index),
@@ -1357,7 +1387,9 @@ print(stability_plot)
 
 ```{r}
 #| label: fig-pov_composition
-#| fig-cap: "Narrative Perspective Composition in Gaiman's Works"
+#| echo: false
+#| warning: false
+#| fig-cap: Narrative Perspective Composition in Gaiman's Works
 # Create perspective composition visualization
 composition_data <- pov_stability %>%
   select(book_id, pct_first, pct_second, pct_third) %>%
@@ -1395,7 +1427,7 @@ composition_plot <- ggplot(composition_data,
 print(composition_plot)
 ```
 
-##### Modal verbs analysis
+#### Modal verbs analysis
 
 Based on the framework of modal grammar [@simpson2003], I categorised modal verbs into four functional groups:
 
@@ -1407,12 +1439,13 @@ Based on the framework of modal grammar [@simpson2003], I categorised modal verb
 
 4.  **Intent** (will, shall, going to, want to): These signal future actions and determinations.
 
-The complete list can be found in Appendix
+The complete list can be found in Appendix. The distribution of the four groups of modals across the books is shown in @fig-modal_verb.
 
-As @fig-modal_verb shows, *Fortunately, the Milk* (FTM) stands out with a distinctly high authority ratio (0.96), substantially higher than all other books which range between 0.42-0.53. This further challenges the attempt to categorise a work into a dichotomy of children/adults literature based on linguistic features alone. In fact, books like *Coraline* (0.45) and *The Graveyard Book* (0.45) have authority ratios comparable to or even lower than typically presumed adult-oriented works like *American Gods* (0.53) and *Smoke and Mirrors* (0.53).
+The most striking difference appears in the "authority ratio" (@fig-authority) —the ratio of world-building and intent modals (groups 1 and 4, expressing certainty) to possibility and hypothetical modals (groups 2 and 3 which express uncertainty). *Fortunately, the Milk* (FTM) stands out with a distinctly high authority ratio (0.96), substantially higher than all other books which range between 0.42-0.53. This further challenges the attempt to categorise a work into a dichotomy of children/adults literature based on linguistic features alone. In fact, books like *Coraline* (0.45) and *The Graveyard Book* (0.45) have authority ratios comparable to or even lower than typically presumed adult-oriented works like *American Gods* (0.53) and *Smoke and Mirrors* (0.53).
 
 ```{r}
 #| label: mocal_verb_cal
+#| include: false
 # Modal Verb Analysis by Narrative Function
 # ---------------------------------------
 
@@ -1476,7 +1509,8 @@ modal_results <- book_texts %>%
 
 ```{r}
 #| label: fig-modal_verb
-#| fig-cap: "Modal Verb Usage by Narrative Function"
+#| echo: false
+#| fig-cap: Modal Verb Usage by Narrative Function
 # Get book titles for visualization
 modal_results <- modal_results %>%
   left_join(
@@ -1531,7 +1565,8 @@ print(modal_plot)
 
 ```{r}
 #| label: fig-authority
-#| fig-cap: "Narrative Voice Authority in Gaiman's Works"
+#| echo: false
+#| fig-cap: Narrative Voice Authority in Gaiman's Works
 # Authority ratio visualization
 authority_plot <- ggplot(modal_results,
                         aes(x = reorder(book_id, authority_ratio),
@@ -1553,17 +1588,19 @@ authority_plot <- ggplot(modal_results,
 print(authority_plot)
 ```
 
-This finding suggests that modal usage in Gaiman's work does not neatly align with presumed audience demographics. The exceptional authority ratio in *Fortunately, the Milk* may reflect its unique status as a humorous children's picture book rather than representing a general pattern for all children's literature. The similarity in authority ratios across most other books indicates that Gaiman maintains a relatively consistent approach to modal expression regardless of intended audience.
+This finding suggests that modal usage in Gaiman's work does not neatly align with presumed audience demographics. The exceptional authority ratio in *Fortunately, the Milk* may reflect its unique status as a humorous children's picture book rather than representing a general pattern for all children's literature. The similarity in authority ratios across most other books indicates that Gaiman maintains a relatively consistent approach to modal expression regardless of intended audience.
 
-This pattern nuances our understanding of Gaiman's style, suggesting that while certain discourse features (like perspective stability) may vary with audience, others (like modal authority) remain more consistent across his work, with specific exceptions for particular narrative contexts.
+### Integrated Analysis
 
-#### Integrated Analysis
-
-Consider use PCA to visualise the distribution of the ten books on the spectrum of children-adults.\
-Or if you have some better idea.
+The previous sections examined Gaiman's stylistic variations at multiple linguistic levels. While individual analyses revealed noteworthy patterns, they also highlighted the limitations of single-dimension approaches to categorising works by intended audience. This section integrates findings across lexical, sentence, and discourse levels to develop a more comprehensive understanding of stylistic variation in Gaiman's works.
 
 ```{r}
-#| label: pca_feature_selection
+#| label: fig-pca_feature_selection
+#| echo: false
+#| message: false
+#| warning: false
+#| results: hide 
+#| fig-cap: "Linguistic Spectrum of Gaiman's Works"
 
 # PCA Analysis of Linguistic Features in Neil Gaiman's Works
 # Purpose: Data-driven exploration of stylistic patterns across books
@@ -1613,11 +1650,12 @@ gaiman_pca <- prcomp(gaiman_features, scale = TRUE)
 # Step 4: Examine basic PCA results
 # -----------------------------------------------------------------
 # Variance explained by each principal component
-summary(gaiman_pca)
+#summary(gaiman_pca) 
+#No raw data shown for report
 
 # Extract the feature loadings on principal components
 loadings <- gaiman_pca$rotation
-print(loadings[, 1:2])  # Loadings on first two components
+# print(loadings[, 1:2])  # Loadings on first two components -- no show for final report 
 
 # Step 5: Create a clear, informative visualization
 book_scores <- as.data.frame(gaiman_pca$x)
@@ -1660,14 +1698,14 @@ pca_spectrum <- ggplot() +
                   force = 10) +
   # Add interpretive annotations
   annotate("text", x = max(book_scores$PC1)*0.85, y = 0, 
-           label = "More complex, mature language", 
+           label = "More complex, advanced language", 
            color = "darkblue", fontface = "bold", hjust = 1) +
   annotate("text", x = min(book_scores$PC1)*0.85, y = 0, 
-           label = "Simpler, child-accessible language", 
+           label = "Simpler, more accessible language", 
            color = "darkblue", fontface = "bold", hjust = 0) +
   # Add titles and axis labels with percentage of variance explained
   labs(
-    title = "Linguistic Spectrum of Gaiman's Works",
+    #title = "Linguistic Spectrum of Gaiman's Works",
     subtitle = "Books positioned by linguistic similarities",
     x = paste0("Linguistic Complexity (PC1: ", round(gaiman_pca$sdev[1]^2/sum(gaiman_pca$sdev^2)*100, 1), "%)"),
     y = paste0("Narrative Perspective (PC2: ", round(gaiman_pca$sdev[2]^2/sum(gaiman_pca$sdev^2)*100, 1), "%)")
@@ -1683,7 +1721,7 @@ pca_spectrum <- ggplot() +
   geom_hline(yintercept = 0, linetype = "dashed", color = "gray50", alpha = 0.7) +
   geom_vline(xintercept = 0, linetype = "dashed", color = "gray50", alpha = 0.7)
 
-# Display the visualization
+# Display the vis
 print(pca_spectrum)
 
 
@@ -1697,12 +1735,44 @@ feature_contrib <- data.frame(
 ) %>%
   arrange(desc(PC1_contribution))
 
-print(feature_contrib)
-
+#print(feature_contrib)
+# cant make it in the report maybe appendix
 ```
 
-The result of PCA, especially the spectrum, should be a highlight of analysis and even the whole report. It provides some counter-intuitive results but also nuanced features. So, this part should be more careful and critical when reporting. A good report should use PCA to connect and integrate the analysis all above and beyond. This would be a strong foundation for the following discussion and conclusion sections.
+To synthesise the multidimensional linguistic data, this study employed Principal Component Analysis (PCA), a statistical technique that identifies patterns across multiple variables. PCA transforms potentially correlated variables into a smaller set of uncorrelated variables called principal components. Each component captures a portion of the total variation in the data, with the first component capturing the largest amount of variation, the second component capturing the second largest, and so on.
 
-### Discussion
+For this analysis, 17 key metrics from previous analyses were included:
 
-### Conclusion
+-   **Lexical features**: lexical diversity, average word length, percentages of short and long words
+
+-   **Sentence features**: average sentence length, percentages of short and long sentences, mean dependency length, readability scores
+
+-   **Content features**: sentiment percentages (positive/negative), profanity frequencies
+
+-   **Discourse features**: POV distributions, perspective stability, authority ratio
+
+The PCA results reveal two distinct dimensions of stylistic variation in Gaiman's works. The first principal component, accounting for 42% of the total variance, corresponds primarily to linguistic complexity. This dimension shows substantial positive correlations with features that indicate more sophisticated language use: longer sentences (loading of 0.369), greater average word length (0.366), higher proportions of long words (0.307), and increased profanity usage (total: 0.351, strong: 0.295). Conversely, it correlates negatively with markers of simpler language, such as higher percentages of short words (-0.366) and shorter sentences (-0.323). These relationships suggest PC1 represents a spectrum from linguistically accessible text (negative values) to more complex expression (positive values).
+
+The second principal component, explaining 28% of variance, captures variations in narrative perspective and approach. This dimension correlates positively with third-person narration (0.385), negative sentiment expression (0.339), lexical diversity (0.274), and syntactic complexity as measured by dependency length (0.250). In contrast, it shows negative associations with perspective stability (-0.405), first-person narration (-0.398), and higher authority ratios (-0.393). This pattern suggests PC2 distinguishes between two narrative approaches: at one end, stable first-person narration with higher narrative authority, and at the other, more varied third-person perspectives with greater lexical range and syntactic complexity.
+
+Together, these two components provide a nuanced framework for understanding stylistic variation in Gaiman's corpus. Rather than revealing a single dimension of simplification for younger audiences, they suggest multiple independent aspects of stylistic adaptation. When plotted in this two-dimensional space (@fig-pca_feature_selection), Gaiman's works reveal patterns that both confirm and challenge conventional audience categorisations.
+
+Along PC1 (Linguistic Complexity), *Fortunately, the Milk* appears to the right, indicating slightly greater complexity, while books like *Stardust*, *The Graveyard Book*, and *Ocean at the End of the Lane* cluster toward the left (simpler language). This contradicts expectations that children's books would consistently show simpler linguistic features. *American Gods* and *Anansi Boys* do show higher complexity as expected for adult literature, but *Smoke and Mirrors* appears with simpler linguistic features despite targeting adult readers.
+
+PC2 (Narrative Perspective) shows additional differentiation, with *Fortunately, the Milk* at the extreme bottom (stable first-person narration with high authority), while *Anansi Boys* and *Stardust* occupy the upper regions (more third-person narration with higher negative sentiment). The *Ocean* *at the End of the Lane* and *Smoke and Mirrors* both exhibit lower PC2 values, suggesting similar narrative perspectives despite different target audiences.
+
+These positions demonstrate that Gaiman's stylistic adaptations don't follow a simple children-adult dichotomy. Instead, they reflect specific creative choices tailored to each work's narrative requirements. For instance, *Fortunately, the Milk*'s position suggests Gaiman adopts complex linguistic features within a highly stable narrative framework for this children's book, perhaps reflecting its fantastical multiverse-travel plot. Meanwhile, *Ocean at the End of the Lane* uses simpler language to effectively convey its childlike perspective on adult themes.
+
+This multidimensional analysis resolves apparent contradictions in individual metrics and reveals Gaiman as an author who adjusts specific stylistic dimensions based on narrative needs rather than making uniform simplifications for younger audiences.
+
+# Discussion
+
+# Conclusion
+
+# Reference
+
+:::{.references}
+
+:::
+
+# Appendix
