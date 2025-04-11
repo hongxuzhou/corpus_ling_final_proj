@@ -2,29 +2,25 @@
 title: "Stylistic Variations in Neil Gaiman's Work: A Corpus-Driven Analysis"
 author: "Hongxu Zhou" 
 format: 
-    pdf:
+    html:
         toc: true
         number-sections: true
         reference-location: document
-        mainfont: "Times New Roman"
+        mainfont: "Arial"
         fontsize: 12pt
         linestretch: 1.5
 bibliography: corpus_ling_ref.bib
 csl: apa.csl
 ---
 
-# Abstract
-
 # Introduction
 
-As a prominent contemporary author, Neil Gaiman has produced a substantial body of work spanning diverse genres and targeting audiences ranging from children to adults. This project employs corpus-driven methods to analyse potential stylistic variations in Gaiman's writing that may distinguish works intended for different reader demographics. Through systematic linguistic analysis, the study aims to identify and characterize textual features that differentiate Gaiman's writing across audience-targeted works.
+As a prominent contemporary author, Neil Gaiman has produced a substantial body of work spanning diverse genres and targeting audiences ranging from children to adults. This project employs corpus-driven methods to analyse potential stylistic variations in Gaiman's writing that may distinguish works intended for different reader demographics. Through systematic linguistic analysis, the study aims to identify and characterise textual features that differentiate Gaiman's writing across audience-targeted works.
+
+## Loading necessary packages
 
 ```{r}
 #| label: packages_loading
-#| message: false
-#| warning: false
-#| include: false
-#| paged-print: false
 # Load required packages
 library(tidyverse)      
 library(here)           
@@ -45,7 +41,6 @@ library(factoextra)
 
 ```{r}
 #| label: corpus_loading
-#| include: false
 
 # Read the corpus
 gaiman_corpus <- readRDS(here("corpora", "gaiman_corpus_complete.rds"))
@@ -54,43 +49,25 @@ gaiman_corpus <- readRDS(here("corpora", "gaiman_corpus_complete.rds"))
 str(gaiman_corpus, max.level = 1)
 ```
 
-The corpus contains three levels of the texts: document-level (tokenised by chapter); sentence-level (tokenised by sentence-end punctuation); and token-level (tokenised by word).
-
-\
+The corpus contains three levels of the texts: document-level (tokenised by chapter); sentence-level (tokenised by sentence-end punctuation); and token-level (tokenised by word).\
 To accelerate the calculation and analysis, some basic statistical features are calculated beforehand and added to the corpus as the layers of Metadata and Vocabulary.
 
-# Literature Review
+# Corpus
 
--   Previous corpus-based studies on stylistic variation in fiction
+This study built a specialised corpus comprising ten books by Neil Gaiman, selected to represent the author's rage across audience demographics. The ten books are:
 
--   Research on linguistic markers of audience targeting (children's vs. adult literature)
-
--   Studies on Neil Gaiman's writing style (if available)
-
--   Research aim: to find out if it is possible to differentiate the targeted audience demographics through a pure data-driven approach.
-
--   **Drafted Research Questions**:
-
-    1.  What linguistic features differentiate Gaiman's writing across audience demographics?
-
-# Methodology
-
-## Corpus
-
-This study employs a specialised corpus comprising ten books by Neil Gaiman, selected to represent the author's rage across audience demographics. The ten books are:
-
-| Book Title                       | Abbr. | Goodreads Genre Tags    |
-|----------------------------------|-------|-------------------------|
-| American Gods                    | AG    | Adult                   |
-| Anansi Boys                      | AB    | Adult                   |
-| Neverwhere                       | NW    | Adult; Young-Adult      |
-| Smoke and Mirrors                | SM    | Adult; Young-Adult      |
-| The Ocean at the End of the Lane | OCEAN | Young-Adult; Adult      |
-| Coraline                         | CL    | Young-Adult; Children;  |
-| The Graveyard Book               | TGB   | Young-Adult; Children   |
-| Fortunately, the Milk            | FTM   | Children, Young-Adult   |
-| Odd the the Frost Giants         | OFG   | Children, Young-Adult   |
-| Stardust                         | ST    | Young Adult, Adult      |
+| Book Title                       | Abbr. | Goodreads Genre Tags   |
+|----------------------------------|-------|------------------------|
+| American Gods                    | AG    | Adult                  |
+| Anansi Boys                      | AB    | Adult                  |
+| Neverwhere                       | NW    | Adult; Young-Adult     |
+| Smoke and Mirrors                | SM    | Adult; Young-Adult     |
+| The Ocean at the End of the Lane | OCEAN | Young-Adult; Adult     |
+| Coraline                         | CL    | Young-Adult; Children; |
+| The Graveyard Book               | TGB   | Young-Adult; Children  |
+| Fortunately, the Milk            | FTM   | Children, Young-Adult  |
+| Odd the the Frost Giants         | OFG   | Children, Young-Adult  |
+| Stardust                         | ST    | Young Adult, Adult     |
 
 : Books in Gaiman Corpus
 
@@ -113,9 +90,6 @@ As a result, the corpus contains 711,385 words across 154 documents (chapter/sto
 
 ```{r}
 #| label: exploratory_analysis
-#| message: false
-#| warning: false
-#| include: false
 # Extract book-level metadata
 book_metadata <- gaiman_corpus$metadata$book_level
 
@@ -134,35 +108,29 @@ corpus_summary <- book_metadata |>
 print(corpus_summary)
 ```
 
-## Analysis
+# Analysis
 
-### lexical level
+## lexical level
 
 The lexical analysis examines word-level patterns that might distinguish text for different audience groups. I analysed word length distribution, lexical diversity, and distinctive vocabulary to investigate potential stylistic variations.
 
 #### Word Length Distribution
 
-Word length often correlates with text complexity — longer words typically appear in more advanced or specialised text [@biber1988]. @fig-word_length_vis presents the percentage of words at each length across Gaiman's works. This visualisation reveals a remarkably consistent pattern across all books, with most words averaging around 4 characters regardless of the intended audience. This suggests that at the the basic word length level, Gaiman maintains a relatively stable style.
-
 ```{r}
 #| label: word_length_cal
-#| message: false
-#| warning: false
-#| include: false
-#| paged-print: false
 # Calculate word length for all tokens
 token_length <- gaiman_corpus$token_level |> 
   # Calculate character length of each token 
   mutate(word_length = nchar(token))
 
-# With token length, we can calculate word lengh by book
+# With token length, calculate word lengh by book
 word_lengh_stats <- token_length |> 
   group_by(book_id) |> 
   summarise(
     avg_length = mean(word_length),
     median_length = median(word_length),
     sd_length = sd(word_length),
-    # We can further check the percentage of words by length 
+    # further check the percentage of words by length 
     short_word_pct = mean(word_length <= 4) * 100, # 1-4 words = short
     medium_word_pct = mean(word_length > 4 & word_length <= 8)* 100, # 4 - 8 = medium
     long_word_pct = mean(word_length >8)*100, # 9+ words are long
@@ -175,7 +143,6 @@ print(word_lengh_stats)
 
 ```{r}
 #| label: fig-word_length_vis
-#| echo: false
 #| fig-cap: Word Length Distribution by Book
 word_lengh_dist <- token_length |> 
   # Count occurrences of each word length in each book 
@@ -244,7 +211,7 @@ print(lex_div_plot)
 
 ```
 
-@fig-ttr_visualisation displays the lexical diversity values cross the 10 books. Interestingly, the TTR values do not clearly separate along audience lines. Even, Fortunately, the Milk, a typical picture book for children, has the highest TTR value. This finding may virtually challenge the assumption that books for younger readers use simpler vocabulary. However, it is acknowledged that TTR is sensitive to text length – longer texts naturally tend toward lower TTR values due to necessary repetition of function words and proper names. This limitation suggests the need for additional, more sophisticated linguistic measures beyond basic lexical metrics.
+#### Word Frequency
 
 ```{r}
 #| label: word_frequnecy
@@ -257,7 +224,7 @@ top_content_words <- vocabulary |>
   arrange(desc(frequency)) |> 
   head(30)
 
-# Skip printing resutls, directly visualise the bar chart
+
 top_words_plot <- ggplot(top_content_words,
                          aes(x = reorder(token_lower, frequency),
                              y = frequency)) +
@@ -276,7 +243,6 @@ print(top_words_plot)
 
 ```{r}
 #| label: quanteda_loading
-#| include: false
 # Create a corpus from the document level data
 quanteda_corpus <- corpus(
   gaiman_corpus$document_level$text,
@@ -303,7 +269,7 @@ calculate_log_odds <- function(dfm_obj, target_book) {
   # Get index of target book
   target_idx <- which(docnames(dfm_obj) == target_book)
   
-  # Skip if book not found
+  # Skip if book not found -- FTM CH1 
   if(length(target_idx) == 0) return(NULL)
   
   # Get counts for target book
@@ -326,17 +292,17 @@ calculate_log_odds <- function(dfm_obj, target_book) {
     target_count = target_counts,
     others_count = others_counts,
     stringsAsFactors = FALSE
-  ) %>%
+  ) |>
     # Sort by log odds (descending)
     arrange(desc(log_odds))
 }
 
 # Create document-feature matrix
-book_dfm <- tokens(quanteda_corpus) %>%
-  tokens_remove(stopwords("en")) %>%
-  tokens_remove(pattern = "[\\d\\p{P}]", valuetype = "regex") %>% # Remove numbers and punctuation
-  dfm() %>%
-  dfm_trim(min_termfreq = 3) %>%  # Remove very rare terms
+book_dfm <- tokens(quanteda_corpus) |>
+  tokens_remove(stopwords("en")) |>
+  tokens_remove(pattern = "[\\d\\p{P}]", valuetype = "regex") |> # Remove numbers and punctuation
+  dfm() |>
+  dfm_trim(min_termfreq = 3) |>  # Remove very rare terms
   dfm_group(groups = docvars(quanteda_corpus, "book_id"))
 
 # Get log odds for each book
@@ -351,8 +317,8 @@ for (book_id in book_ids) {
   if(is.null(book_keywords)) next
   
   # Keep top 20 distinctive words
-  book_keywords <- book_keywords %>%
-    head(20) %>%
+  book_keywords <- book_keywords |>
+    head(20) |>
     mutate(book_id = book_id)
   
   # Add to results list
@@ -365,13 +331,12 @@ keywords_df <- bind_rows(all_keywords)
 
 ```{r}
 #| label: fig-log_off_keywords
-#| echo: false
 #| fig-cap: Top 10 Keywords by Book
-# Visualize top 10 keywords for each book
-top_keywords_plot <- keywords_df %>%
-  group_by(book_id) %>%
-  slice_head(n = 10) %>%
-  ungroup() %>%
+# Vis top 10 keywords for each book
+top_keywords_plot <- keywords_df |>
+  group_by(book_id) |>
+  slice_head(n = 10) |>
+  ungroup() |>
   ggplot(aes(x = tidytext::reorder_within(term, log_odds, book_id), 
              y = log_odds, 
              fill = book_id)) +
@@ -391,11 +356,7 @@ top_keywords_plot <- keywords_df %>%
 print(top_keywords_plot)
 ```
 
-@fig-log_off_keywords shows the top distinctive words for each book. The keyword analysis reveals thematic differences more than stylistic ones: distinctive words primarily reflect characters and plot elements rather than systematic vocabulary differences based on audience age.
-
-The lexical results suggest that Gaiman does not significantly simplify his vocabulary for younger readers. This finding may contraindicate conventional assumptions about children's literature. The unexpected pattern prompts to look beyond word-level features toward sentence structure and complexity, where more pronounced stylistic variations might emerge.
-
-### Sentence Level
+## Sentence Level
 
 The sentence level analysis provides deeper insights into the stylistic variation in the corpus than word-level features alone. Based on sentence structure analysis, I examine complexity, readability and content characteristics across different works.
 
@@ -403,23 +364,21 @@ The sentence level analysis provides deeper insights into the stylistic variatio
 
 ```{r}
 #| label: sent_loading
-#| include: false
 
 # Prepare sentence data
-sentence_data <- gaiman_corpus$sentence_level %>%
+sentence_data <- gaiman_corpus$sentence_level |>
   select(book_id, title, chapter_num, sentence_id, text)
 ```
 
 ```{r}
 #| label: fig-sentent_length_dist_vis
-#| echo: false
 #| fig-cap: Sentence Length Distribution by Book
 # Calculate sentence length statistics
-sentence_length_stats <- sentence_data %>%
+sentence_length_stats <- sentence_data |>
   # Add sentence length in words
-  mutate(sentence_length = sapply(strsplit(text, "\\s+"), length)) %>%
-  # Group by book
-  group_by(book_id) %>%
+  mutate(sentence_length = sapply(strsplit(text, "\\s+"), length)) |>
+  # Group by book - no need ungroup, no effect
+  group_by(book_id) |>
   # Calculate statistics
   summarise(
     avg_length = mean(sentence_length),
@@ -429,15 +388,15 @@ sentence_length_stats <- sentence_data %>%
     max_length = max(sentence_length),
     short_sent_pct = mean(sentence_length <= 5) * 100,  # Percentage of short sentences
     long_sent_pct = mean(sentence_length > 20) * 100    # Percentage of long sentences
-  ) %>%
+  ) |>
   arrange(desc(avg_length))
 
-# Visualize sentence length distribution
-sentence_length_vis <- sentence_data %>%
+# Vis sentence length distribution
+sentence_length_vis <- sentence_data |>
   # Add sentence length in words
-  mutate(sentence_length = sapply(strsplit(text, "\\s+"), length)) %>%
+  mutate(sentence_length = sapply(strsplit(text, "\\s+"), length)) |>
   # Remove extreme outliers for better visualization
-  filter(sentence_length <= 50) %>%
+  filter(sentence_length <= 50) |>
   ggplot(aes(x = sentence_length, y = book_id, fill = book_id)) +
   geom_density_ridges(alpha = 0.7, scale = 3) +
   labs(
@@ -452,25 +411,22 @@ sentence_length_vis <- sentence_data %>%
 print(sentence_length_vis)
 ```
 
-As a fundamental metric, sentence length offers initial insights into text complexity. @fig-sentent_length_dist_vis displays the distribution of sentence lengths across Gaiman's books. While all of them show similar central tendencies with peaks around 7-12 words per sentence, *Fortunately, the Milk* and *Odd and the Frost Giants* display narrower distributions with fewer long sentences. The more controlled sentence length variance suggests that they are more likely for children, though the differences are subtle and require deeper syntactic analysis.
-
 #### Syntactic Complexity
 
 Syntactic complexity is measured through dependency parsing, which captures the relationships between words in a sentence. Mean dependency length (MDL) is a method that calculates the average distance between syntactically related words. It represents language comprehension difficulty [@haitaoliu2008]. Higher MDL values indicate more complex sentence structures, for example, with embedded or non-adjacent relationships.
 
-This analysis sampled 100 sentences from each book and parsed them using the Universal Dependency framework provided by `udpipe` [@straka2016]. @fig-ud_vis presents the mean dependency length for each work. Three books that are generally considered for adults, *American Gods, Neverwhere,* and *Anansi Boys* show consistently higher MDL values (from 3.5 to 4.2) compared to those typically for children and younger audiences (*Odd and the Frost Giants, Fortunately, the Milk*), which show lower values (from 2.4 to 3). This pattern suggests Gaiman systematically adjusts syntactic complexity based on intended audience.
+This analysis sampled 100 sentences from each book and parsed them using the Universal Dependency framework provided by `udpipe` [@straka2016].
 
 ```{r}
 #| label: ud_cal
-#| include: false
 
 
 # 1. Function to calculate mean dependency length for parsed text
 calculate_mean_dep_length <- function(parsed_data) {
   # For each sentence, calculate dependency lengths
-  parsed_data %>%
+  parsed_data |>
     # Filter out root nodes and punctuation
-    filter(head_token_id != 0, upos != "PUNCT") %>%
+    filter(head_token_id != 0, upos != "PUNCT") |>
     # Calculate absolute distance between each word and its head
     mutate(
       # Convert IDs to numeric and calculate distance
@@ -478,7 +434,7 @@ calculate_mean_dep_length <- function(parsed_data) {
       head_id_num = as.numeric(head_token_id),
       # Absolute difference is the dependency length
       dep_length = abs(token_id_num - head_id_num)
-    ) %>%
+    ) |>
     # Calculate mean dependency length
     summarize(
       mean_dep_length = mean(dep_length, na.rm = TRUE),
@@ -495,24 +451,24 @@ set.seed(42) # For reproducibility in sampling
 sample_size <- 100 # Sample 100 sentences per book for analysis
 
 # Get sample sentences from each book - FIXED version
-sampled_sentences <- sentence_data %>%
+sampled_sentences <- sentence_data |>
   # Split by book_id
-  group_by(book_id) %>%
+  group_by(book_id) |>
   # Use group_modify to properly access group size
   group_modify(~{
     # Get the minimum of sample_size or actual group size
     sample_size_to_use <- min(sample_size, nrow(.x))
     # Sample that many rows
     slice_sample(.x, n = sample_size_to_use)
-  }) %>%
+  }) |>
   ungroup()
 
 # Create a unique identifier for each sampled sentence
-sampled_sentences <- sampled_sentences %>%
+sampled_sentences <- sampled_sentences |>
   mutate(sample_id = paste0(book_id, "_", row_number()))
 
-# Initialize dependency parsing model
-# Note: This requires downloading a model - this block shows expected code flow
+# Initialise dependency parsing model
+# Note: everytime it runs, it downloads the model again 
 dep_model <- udpipe_download_model(language = "english-ewt", model_dir = getwd())
 ud_model <- udpipe_load_model(dep_model$file_model)
 
@@ -526,23 +482,23 @@ parsed_samples <- udpipe(
 )
 
 # Create a mapping between sample_id and book_id
-sample_book_mapping <- sampled_sentences %>%
-  select(sample_id, book_id, title) %>%
+sample_book_mapping <- sampled_sentences |>
+  select(sample_id, book_id, title) |>
   distinct()
 
 # 3. Calculate mean dependency length for each sentence, then aggregate by book
-sentence_dependency_stats <- parsed_samples %>%
+sentence_dependency_stats <- parsed_samples |>
   # Group by doc_id (which is our sample_id)
-  group_by(doc_id) %>%
+  group_by(doc_id) |>
   # Calculate dependency stats for each sentence
   group_modify(~calculate_mean_dep_length(.x))
 
 # Join with our mapping to get book information
-book_dependency_stats <- sentence_dependency_stats %>%
+book_dependency_stats <- sentence_dependency_stats |>
   # Join with mapping to get book_id
-  left_join(sample_book_mapping, by = c("doc_id" = "sample_id")) %>%
+  left_join(sample_book_mapping, by = c("doc_id" = "sample_id")) |>
   # Group by book to aggregate sentence-level stats
-  group_by(book_id, title) %>%
+  group_by(book_id, title) |>
   # Calculate book-level averages
   summarize(
     mean_dep_length = mean(mean_dep_length, na.rm = TRUE),
@@ -556,11 +512,9 @@ book_dependency_stats <- sentence_dependency_stats %>%
 
 ```{r}
 #| label: fig-ud_vis
-#| echo: false
-#| warning: false
 #| fig-cap: Syntactic Complexity in Gaiman's Works
 
-# 4. Create visualization of mean dependency length
+# 4. Create vis of mean dependency length
 dep_length_plot <- ggplot(book_dependency_stats,
   # Sort by mean dependency length
   aes(x = reorder(book_id, mean_dep_length),
@@ -585,8 +539,8 @@ dep_length_plot <- ggplot(book_dependency_stats,
   )
 
 # 5. Find illustrative examples of short and long dependencies
-# We'll find examples from the original parsed sentences
-parsed_with_dep_length <- parsed_samples %>%
+# better be extreme
+parsed_with_dep_length <- parsed_samples |>
   # Calculate dependency length for each token
   mutate(
     token_id_num = as.numeric(token_id),
@@ -595,48 +549,48 @@ parsed_with_dep_length <- parsed_samples %>%
   )
 
 # Aggregate to get max dependency length in each sentence
-sentence_max_deps <- parsed_with_dep_length %>%
-  group_by(doc_id, sentence_id) %>%
+sentence_max_deps <- parsed_with_dep_length |>
+  group_by(doc_id, sentence_id) |>
   summarize(
     max_dep = max(dep_length[upos != "PUNCT" & head_token_id != "0"], na.rm = TRUE),
     sentence_text = first(sentence),
     .groups = "drop"
-  ) %>%
+  ) |>
   # Remove potential NA/Inf values from empty sentences
   filter(is.finite(max_dep))
 
 # Find better examples
-short_example <- sentence_max_deps %>%
-  filter(max_dep > 1 & max_dep <= 3) %>%  # Not too trivial, but still simple
-  filter(nchar(sentence_text) > 10) %>%    # Ensure it's a real sentence
-  arrange(max_dep) %>%
+short_example <- sentence_max_deps |>
+  filter(max_dep > 1 & max_dep <= 3) |>  # Not too trivial, but still simple
+  filter(nchar(sentence_text) > 10) |>    # Ensure it's a real sentence
+  arrange(max_dep) |>
   slice(1)
 
-long_example <- sentence_max_deps %>%
-  filter(max_dep >= 7) %>%                # Clearly complex
-  arrange(desc(max_dep)) %>%
+long_example <- sentence_max_deps |>
+  filter(max_dep >= 7) |>                # Clearly complex
+  arrange(desc(max_dep)) |>
   slice(1)
 
 # Join with book information for examples
 example_sentences <- bind_rows(
-  short_example %>% mutate(type = "Short dependency"),
-  long_example %>% mutate(type = "Long dependency")
-) %>%
+  short_example |> mutate(type = "Short dependency"),
+  long_example |> mutate(type = "Long dependency")
+) |>
   left_join(sample_book_mapping, by = c("doc_id" = "sample_id"))
 
 # Print results
 print(dep_length_plot)
 
 # Print example sentences with book sources
-#cat("\nExample sentences illustrating dependency length:\n\n")
+cat("\nExample sentences illustrating dependency length:\n\n")
 # not very helpful and takes too much space, not use
 
-#for(i in 1:nrow(example_sentences)) {
-  #cat(paste0(example_sentences$type[i], " (max = ", 
-             #round(example_sentences$max_dep[i], 1), 
-             #") from ", example_sentences$title[i], ":\n"))
-  #cat(example_sentences$sentence_text[i], "\n\n")
-#}
+for(i in 1:nrow(example_sentences)) {
+  cat(paste0(example_sentences$type[i], " (max = ", 
+             round(example_sentences$max_dep[i], 1), 
+             ") from ", example_sentences$title[i], ":\n"))
+  cat(example_sentences$sentence_text[i], "\n\n")
+}
 ```
 
 #### Readability Analysis
@@ -645,14 +599,13 @@ The Flesch-Kincaid Grade Level scores provide standardised readability measureme
 
 ```{r}
 #| label: fig-readability_score
-#| echo: false
 #| fig-cap: Reading Difficulty of Gaiman's Works
 # Focus solely on Flesch-Kincaid Grade Level without imposing age categories
 
 # 1. Calculate readability scores for each book
-book_texts <- gaiman_corpus$document_level %>%
-  group_by(book_id) %>%
-  summarise(text = paste(text, collapse = " ")) %>%
+book_texts <- gaiman_corpus$document_level |>
+  group_by(book_id) |>
+  summarise(text = paste(text, collapse = " ")) |>
   ungroup()
 
 # 2. Use quanteda for readability calculations
@@ -663,15 +616,15 @@ readability_scores <- textstat_readability(
 readability_scores$book_id <- book_texts$book_id
 
 # 3. Join with book information
-readability_data <- readability_scores %>%
+readability_data <- readability_scores |>
   # Get book information (title only)
   left_join(
-    gaiman_corpus$metadata$book_level %>% 
+    gaiman_corpus$metadata$book_level |> 
       select(book_id, title), 
     by = "book_id"
   )
 
-# 4. Create a cleaner, data-driven visualization
+# 4. Create a cleaner, data-driven vis
 readability_plot <- ggplot(readability_data,
   # Sort by Flesch-Kincaid score (reading difficulty)
   aes(x = reorder(book_id, Flesch.Kincaid),
@@ -703,32 +656,19 @@ readability_plot <- readability_plot +
   # Add book titles as text labels
   geom_text(
     aes(label = title, y = 0.5),
-    angle = 90, hjust = 0, size = 2.5, color = "grey45"
+    angle = 90, hjust = 0, size = 2.5, color = "orange" # easier to see
   )
 
 # Display the visualization
 print(readability_plot)
 ```
 
-The results demonstrate a unexpected patterns that challenge conventional assumptions about audience targeting. All books are below 8th grade which fits Gaiman's niche as a writer of popular fiction. *American Gods*, often categorised as an adult fiction, scores lower than *The Graveyard Book*, which is tagged as "Middle Grade" and "Young Adult" on goodreads. This suggests that readability scores alone cannot reliably predict audience targeting in Gaiman's work.
-
-This finding is echoed by recent criticism of readability metrics. @tanprasert2021 argue that "Flesch-Kincaid Grade Level (FKGL) should not be used to evaluate text simplification systems," noting that the score can be easily manipulated with minor textual changes. FKGL formulas primarily rely on surface features such as word and sentence length, while fail to capture semantic complexity, narrative sophistication, thematic maturity, or cultural references that can better differentiate works for different audiences.
-
 #### Profanity Analysis
 
-A dictionary-based approach was used to detect and categorise profanity across words. Three categories were established:
-
--   **mild profanity**: for example, "damn"
-
--   **moderate profanity**: for example, "ass, shit"
-
--   **strong profanity**: for example, "fuck, cunt"
-
-The complete list of profanity can be found in Appendix. @fig-swear_analysis shows the frequency of profanity per 1,000 words for each book.
+A dictionary-based approach was used to detect and categorise profanity across words.
 
 ```{r}
 #| label: swear_analysis_calculation
-#| include: false
 
 # 2. Define categorized profanity dictionaries
 # Expanded lists with more comprehensive coverage
@@ -756,7 +696,7 @@ strong_profanity <- c(
 all_profanity <- unique(c(mild_profanity, moderate_profanity, strong_profanity))
 
 # 3. Prepare sentence-level data
-sentence_data <- gaiman_corpus$sentence_level %>%
+sentence_data <- gaiman_corpus$sentence_level |>
   select(book_id, title, sentence_id, text)
 
 # 4. Apply overall profanity detection 
@@ -769,10 +709,10 @@ profanity_results <- profanity_by(
 # 5. Create function to count profanity by category
 count_profanity_by_category <- function(book_id, sentence_data) {
   # Extract text for this book
-  book_text <- sentence_data %>%
-    filter(book_id == !!book_id) %>%
-    pull(text) %>%
-    paste(collapse = " ") %>%
+  book_text <- sentence_data |>
+    filter(book_id == !!book_id) |>
+    pull(text) |>
+    paste(collapse = " ") |>
     tolower()
   
   # Count instances of each category
@@ -811,34 +751,34 @@ category_counts <- lapply(book_ids, function(id) {
 })
 
 # Combine results
-profanity_categories <- bind_rows(category_counts) %>%
+profanity_categories <- bind_rows(category_counts) |>
   # Join with word counts from profanity_results
   left_join(
-    profanity_results %>% select(book_id, word_count),
+    profanity_results |> select(book_id, word_count),
     by = "book_id"
-  ) %>%
+  ) |>
   # Calculate rates per 1000 words
   mutate(
     mild_per_1000 = (mild_count / word_count) * 1000,
     moderate_per_1000 = (moderate_count / word_count) * 1000,
     strong_per_1000 = (strong_count / word_count) * 1000,
     total_per_1000 = (total_count / word_count) * 1000
-  ) %>%
+  ) |>
   # Sort by total profanity rate
   arrange(desc(total_per_1000))
 
 # 7. Create visualization of profanity categories
 # Prepare data for stacked bar chart
-profanity_long <- profanity_categories %>%
-  select(book_id, ends_with("per_1000")) %>%
+profanity_long <- profanity_categories |>
+  select(book_id, ends_with("per_1000")) |>
   # Keep only category columns
-  select(-total_per_1000) %>%
+  select(-total_per_1000) |>
   # Convert to long format
   pivot_longer(
     cols = ends_with("per_1000"),
     names_to = "category",
     values_to = "rate_per_1000"
-  ) %>%
+  ) |>
   # Clean up category names
   mutate(
     category = case_when(
@@ -863,7 +803,7 @@ category_plot <- ggplot(profanity_long,
   )) +
   labs(
     #title = "Profanity in Gaiman's Works by Intensity Level",
-    subtitle = "Words per 1,000 categorized by severity",
+    subtitle = "Words per 1,000 categorised by severity",
     x = "Book",
     y = "Frequency (per 1,000 words)",
     fill = "Profanity Level"
@@ -877,7 +817,7 @@ category_plot <- ggplot(profanity_long,
 # 8. Function to extract examples for each category
 extract_category_examples <- function(book_id, category, word_list, n_examples = 2) {
   # Get sentences for this book
-  book_sentences <- sentence_data %>%
+  book_sentences <- sentence_data |>
     filter(book_id == !!book_id)
   
   # Find sentences containing words from the specified category
@@ -898,11 +838,11 @@ extract_category_examples <- function(book_id, category, word_list, n_examples =
           text = highlighted,
           term = term
         )))
-        # Stop if we have enough examples
+        # Stop once have enough examples
         if (length(matches) >= n_examples) break
       }
     }
-    # Stop if we have enough examples
+    # lost in the if loops here but dont remove this one!!! 
     if (length(matches) >= n_examples) break
   }
   
@@ -928,8 +868,8 @@ extract_category_examples <- function(book_id, category, word_list, n_examples =
 
 # 9. Extract examples for top books
 # Get top 3 books by total profanity
-top_books <- profanity_categories %>%
-  top_n(3, total_per_1000) %>%
+top_books <- profanity_categories |>
+  top_n(3, total_per_1000) |>
   pull(book_id)
 
 # Extract examples for each category from each top book
@@ -947,7 +887,6 @@ for (book in top_books) {
 
 ```{r}
 #| label: fig-swear_analysis
-#| echo: false
 #| fig-cap: Profanity in Gaiman's Works by Intensity Level
 
 print(category_plot)
@@ -957,20 +896,15 @@ print(category_plot)
 
 ```{r}
 #| label: swear_analysis_stats
-#| include: false
 # Print category statistics
 cat("\nProfanity statistics by category and book:\n")
-print(profanity_categories %>% 
+print(profanity_categories |> 
       select(book_id, mild_per_1000, moderate_per_1000, strong_per_1000, total_per_1000))
 
 ```
 
 ```{r}
 #| label: swear_analysis_examples
-#| message: false
-#| warning: false
-#| include: false
-#| paged-print: false
 # 11. Print examples with category context
 cat("\nExamples of profanity by category from top books:\n\n")
 for (book in top_books) {
@@ -1011,24 +945,17 @@ for (book in top_books) {
   
   cat("\n")
 }
-# No there is no space for these much examples
+# only show examples for html format 
 ```
-
-The data reveals notable variations in profanity usage across Gaiman corpus. *American Gods* shows the highest overall profanity rate (2.28 per 1,000 words), followed by *Smoke and Mirrors* (1.32 per 1,000 words), and *Neverwhere* (1.02). At the lower end, *Fortunately, the Milk* (0.13)*, Coraline* (0.19)*,* and *The Ocean at the End of the Lane* (0.24) contain minimal profanity. The figure also indicates the frequency and intensity of profanity are positively associated. The patterns of profanity distribution directly reflect the features that can influence demographic targeting such as thematic concerns, narrative tone, and publication context.
 
 #### Sentiment Analysis
 
-I calculated sentence-level sentiment variation by `sentimentr` [@tylerw2021]. @fig-senti_dist shows the sentiment distribution across books.
+I calculated sentence-level sentiment variation by `sentimentr` [@tylerw2021].
 
 ```{r}
 #| label: fig-senti_dist
-#| echo: false
-#| message: false
-#| warning: false
+#| fig-cap: Sentiment Distribution in Gaiman's Works
 #| results: hide
-#| fig-cap: "Sentiment Distribution in Gaiman's Works"
-
-# First, let's set up a simple analysis pipeline
 
 # 1. Calculate sentence-level sentiment
 sentence_sentiment <- sentiment_by(
@@ -1040,7 +967,7 @@ sentence_sentiment <- sentiment_by(
 )
 
 # 2. Classify each sentence as positive, negative, or neutral
-sentence_sentiment <- sentence_sentiment %>%
+sentence_sentiment <- sentence_sentiment |>
   mutate(
     sentiment_class = case_when(
       ave_sentiment > 0.05 ~ "Positive",
@@ -1050,8 +977,8 @@ sentence_sentiment <- sentence_sentiment %>%
   )
 
 # 3. Calculate the distribution for each book
-book_sentiment_distribution <- sentence_sentiment %>%
-  group_by(book_id) %>%
+book_sentiment_distribution <- sentence_sentiment |>
+  group_by(book_id) |>
   summarize(
     total_sentences = n(),
     positive_count = sum(sentiment_class == "Positive"),
@@ -1063,20 +990,20 @@ book_sentiment_distribution <- sentence_sentiment %>%
   )
 
 # 4. Verify our percentages add up to 100%
-book_sentiment_distribution <- book_sentiment_distribution %>%
+book_sentiment_distribution <- book_sentiment_distribution |>
   mutate(total_pct = positive_pct + negative_pct + neutral_pct)
 
 # Check results (should be close to 100% for each book)
 print(book_sentiment_distribution[, c("book_id", "total_pct")])
 
 # 5. Create data for visualization
-sentiment_long <- book_sentiment_distribution %>%
-  select(book_id, positive_pct, negative_pct, neutral_pct) %>%
+sentiment_long <- book_sentiment_distribution |>
+  select(book_id, positive_pct, negative_pct, neutral_pct) |>
   pivot_longer(
     cols = c("positive_pct", "negative_pct", "neutral_pct"),
     names_to = "sentiment",
     values_to = "percentage"
-  ) %>%
+  ) |>
   mutate(
     sentiment = case_when(
       sentiment == "positive_pct" ~ "Positive",
@@ -1112,67 +1039,60 @@ sentiment_distribution_plot <- ggplot(sentiment_long,
 # Display the plot
 print(sentiment_distribution_plot)
 
-# Optional: Generate a summary table for reporting
-sentiment_summary <- book_sentiment_distribution %>%
-  select(book_id, positive_pct, negative_pct, neutral_pct) %>%
+# Generate a summary table for reporting
+sentiment_summary <- book_sentiment_distribution |>
+  select(book_id, positive_pct, negative_pct, neutral_pct) |>
   arrange(desc(positive_pct))
 
 print(sentiment_summary)
 ```
 
-The analysis demonstrates considerable consistency in sentiment distribution across Gaiman's works. Most books maintain a similar balance of emotional content (approximately 23 - 31% positive, 18 - 27% negative, and 43 - 52% neutral). *Odd and the Frost Giants* shows the highest proportion of negative sentences (33.45%) while *Stardust* shows the highest proportion of positive sentences (31%).
-
-The emotional arcs — how sentiment progresses through the narrative – show some variation. @fig-senti_arc illustrates these emotional trajectories. *Smoke and Mirrors* (SM) shows the highest sentiment range (0.46 with starting sentiment at -0.03 and ends at 0.23). However, this pattern likely stems from its nature as collection of short stories rather than representing a stylistic choice related to audience targeting. In general the sentiment arcs of the ten books vary from -0.23 to 0.24. The overall stable sentiment distribution across works suggests that one the one hand, Gaiman maintains a consistent emotional palette regardless of intended readership; on the other hand, `sentimentr`, as a dictionary-based approach, may fail to catch some subtle sentiments such as irony and satire. Unlike profanity usage and syntactic complexity, sentiment patterns do not appear to correlate meaningfully with potential audience demographics.
-
-In sentence-level analysis, profanity usage appears to be the most distinctive content-based marker, with clear patterns of variation across different works. They create groupings that partially but not perfectly align with traditional audience categorisations. The sentence-level features provides more nuanced insights than lexical analysis alone, suggesting that Gaiman's stylistic adaptations for different audiences operate more at the structural and content-appropriateness levels than through vocabulary simplification. The findings so far pave the way to examine discourse-level patterns to develop a more comprehensive understanding of potential audience-based stylistic variations.
-
 ```{r}
 #| label: fig-senti_arc
-#| echo: false
+#| fig-cap: Emotional Arcs in Neil Gaiman's Works
 #| results: hide
-#| fig-cap: "Emotional Arcs in Neil Gaiman's Works"
 # Sentiment Flow Analysis
-# This function visualizes how sentiment changes throughout each book's narrative progression
+# the idea is to show how sentiment changes throughout each book's narrative progression
 
 # 1. Calculate sentiment by chapter for each book
-chapter_sentiment <- sentence_sentiment %>%
+chapter_sentiment <- sentence_sentiment |>
   # Join with document information to get chapter numbers
   left_join(
-    gaiman_corpus$sentence_level %>% 
-      select(book_id, sentence_id, chapter_num) %>% 
+    gaiman_corpus$sentence_level |> 
+      select(book_id, sentence_id, chapter_num) |> 
       distinct(),
     by = c("book_id", "sentence_id")
-  ) %>%
+  ) |>
   # Group by book and chapter to calculate average sentiment
-  group_by(book_id, chapter_num) %>%
+  group_by(book_id, chapter_num) |>
   summarize(
     chapter_sentiment = mean(ave_sentiment, na.rm = TRUE),
     sentences_count = n(),
     .groups = "drop"
   )
 
-# 2. Calculate normalized position for each chapter within its book
-normalized_sentiment_flow <- chapter_sentiment %>%
+# 2. Calculate normalised position for each chapter within its book
+normalised_sentiment_flow <- chapter_sentiment |>
   # Group by book to calculate relative positions
-  group_by(book_id) %>%
+  group_by(book_id) |>
   mutate(
     # Get the max chapter number for each book
     max_chapter = max(chapter_num, na.rm = TRUE),
-    # Calculate normalized position (0-100% of narrative)
-    narrative_position = (chapter_num / max_chapter) * 100
-  ) %>%
+    # Calculate normalised position (0-100% of narrative)
+    narrative_position = (chapter_num / max_chapter) * 100 # maybe should change the normalising method, the scaling looks odd
+  ) |>
   # Get book titles for better labeling
   left_join(
-    gaiman_corpus$document_level %>% 
-      select(book_id, title) %>% 
+    gaiman_corpus$document_level |> 
+      select(book_id, title) |> 
       distinct(),
     by = "book_id"
-  ) %>%
+  ) |>
   # Make sure we don't have NA values
   filter(!is.na(chapter_sentiment))
 
-# 3. Create a combined visualization showing all books' arcs
-emotional_arcs_plot <- ggplot(normalized_sentiment_flow,
+# 3. Create a combined vis showing all books' arcs for report
+emotional_arcs_plot <- ggplot(normalised_sentiment_flow,
                              aes(x = narrative_position,
                                  y = chapter_sentiment,
                                  color = book_id)) +
@@ -1199,7 +1119,7 @@ emotional_arcs_plot <- ggplot(normalized_sentiment_flow,
   )
 
 # 4. Create a facetted version showing individual book arcs
-individual_arcs_plot <- ggplot(normalized_sentiment_flow,
+individual_arcs_plot <- ggplot(normalised_sentiment_flow,
                               aes(x = narrative_position,
                                   y = chapter_sentiment)) +
   # Add smoothed trend lines to see the emotional arc
@@ -1227,11 +1147,11 @@ individual_arcs_plot <- ggplot(normalized_sentiment_flow,
 
 # 5. Print both visualizations
 print(emotional_arcs_plot)
-#print(individual_arcs_plot) no need for reporting
+print(individual_arcs_plot) 
 
 # 6. Calculate key statistics about the arcs
-arc_statistics <- normalized_sentiment_flow %>%
-  group_by(book_id, title) %>%
+arc_statistics <- normalised_sentiment_flow |>
+  group_by(book_id, title) |>
   summarize(
     start_sentiment = first(chapter_sentiment),
     end_sentiment = last(chapter_sentiment),
@@ -1240,14 +1160,14 @@ arc_statistics <- normalized_sentiment_flow %>%
     sentiment_range = max_sentiment - min_sentiment,
     overall_trend = end_sentiment - start_sentiment,
     .groups = "drop"
-  ) %>%
+  ) |>
   mutate(
     arc_type = case_when(
       overall_trend > 0.05 ~ "Rising (positive resolution)",
       overall_trend < -0.05 ~ "Falling (negative resolution)",
       TRUE ~ "Neutral/Circular"
     )
-  ) %>%
+  ) |>
   arrange(desc(overall_trend))
 
 # 7. Print summary statistics
@@ -1260,24 +1180,16 @@ After examining word- and sentence-level patterns, this section moves further by
 
 #### Point of View analysis
 
-Point of view (POV) represents a fundamental aspect of narrative discourse. The analysis tracked personal pronoun usage across the 10 books in the corpus to identify patterns in narrative perspective. @fig-pov_composition shows the composition of first (I/me), second (you), and third (she/he/they) pronouns as percentages of total words across the corpus.
-
-Books like *Fortunately, the Milk* (FTM) and *The Ocean at the End of the Lane* (OCEAN) show higher rates of first-person narration compared to books like *American Gods* (AM), *Coraline* (CL), and *Neverwhere* (NW). This suggest that POV alone is not a feature differentiating the target audience group of a book.
-
-Perspective stability analysis, on the other hand, reveals clearer patterns that may related to audience considerations. @fig-pov_stable displays the narrative perspective stability index. It measures how consistently each book maintains its dominant perspective without shifts. Books generally considered appropriate for younger readers (FTM and OFG) show higher stability indices (0.72 - 0.8), while books aimed at older audiences (AG, AB) demonstrate more perspective shifting (0.53 - 0.58). However, ST, a books that usually considered for young adults, has the highest shifting score.
-
 ```{r}
 #| label: pov_shift_analysis
-#| echo: false
-#| warning: false
- # POV Stability Analysis (Window-based approach)
-# ---------------------------------------
+#| 
+# POV Stability Analysis (Window-based approach)
 
-# First, check what columns are actually available in your token data
-# str(gaiman_corpus$token_level)
+str(gaiman_corpus$token_level)
 
-# Adjust the analysis to work with your corpus structure
-pov_stability <- gaiman_corpus$token_level %>%
+# Adjust the analysis to work with the corpus structure
+# this is dis-level anlaysis, but uses token subcorpus 
+pov_stability <- gaiman_corpus$token_level |>
   # Filter for pronoun tokens using token_lower instead of upos
   filter(token_lower %in% c(
     # First person
@@ -1287,7 +1199,7 @@ pov_stability <- gaiman_corpus$token_level %>%
     # Third person
     "he", "him", "his", "himself", "she", "her", "hers", "herself",
     "it", "its", "itself", "they", "them", "their", "theirs", "themselves"
-  )) %>%
+  )) |>
   # Add perspective classification
   mutate(
     perspective = case_when(
@@ -1295,9 +1207,9 @@ pov_stability <- gaiman_corpus$token_level %>%
       token_lower %in% c("you", "your", "yours", "yourself", "yourselves") ~ "second",
       TRUE ~ "third"
     )
-  ) %>%
+  ) |>
   # Group by book and sentence
-  group_by(book_id, sentence_id) %>%
+  group_by(book_id, sentence_id) |>
   # Determine predominant perspective for each sentence
   summarize(
     perspective = case_when(
@@ -1307,25 +1219,26 @@ pov_stability <- gaiman_corpus$token_level %>%
       TRUE ~ "none"  # Fallback (shouldn't happen given our filter)
     ),
     .groups = "drop"
-  ) %>%
+  ) |>
   # Group sentences into windows to avoid name-pronoun alternation issues
-  group_by(book_id) %>%
+  # I dont think this actually words, problem remains
+  group_by(book_id) |>
   mutate(
     # Create perspective windows (groups of consecutive sentences)
     window_id = ceiling(row_number() / 5)
-  ) %>%
+  ) |>
   # Get dominant perspective for each window
-  group_by(book_id, window_id) %>%
+  group_by(book_id, window_id) |>
   summarize(
     dominant_perspective = names(which.max(table(perspective))),
     .groups = "drop"
-  ) %>%
+  ) |>
   # Track shifts in dominant perspective
-  group_by(book_id) %>%
+  group_by(book_id) |>
   mutate(
     prev_perspective = lag(dominant_perspective),
     is_shift = dominant_perspective != prev_perspective & !is.na(prev_perspective)
-  ) %>%
+  ) |>
   # Calculate stability index and perspective composition
   summarize(
     windows = n(),
@@ -1337,15 +1250,14 @@ pov_stability <- gaiman_corpus$token_level %>%
     .groups = "drop"
   )
 
-# Get book titles for better visualization
-pov_stability <- pov_stability %>%
+# Get book titles for better vis
+pov_stability <- pov_stability |>
   left_join(
-    gaiman_corpus$document_level %>% 
-      select(book_id, title) %>% 
+    gaiman_corpus$document_level |> 
+      select(book_id, title) |> 
       distinct(),
     by = "book_id"
   )
-
 
 ```
 
@@ -1378,17 +1290,15 @@ print(stability_plot)
 
 ```{r}
 #| label: fig-pov_composition
-#| echo: false
-#| warning: false
 #| fig-cap: Narrative Perspective Composition in Gaiman's Works
 # Create perspective composition visualization
-composition_data <- pov_stability %>%
-  select(book_id, pct_first, pct_second, pct_third) %>%
+composition_data <- pov_stability |>
+  select(book_id, pct_first, pct_second, pct_third) |>
   pivot_longer(
     cols = c(pct_first, pct_second, pct_third),
     names_to = "perspective",
     values_to = "percentage"
-  ) %>%
+  ) |>
   mutate(
     perspective = case_when(
       perspective == "pct_first" ~ "First Person",
@@ -1430,23 +1340,15 @@ Based on the framework of modal grammar [@simpson2003], I categorised modal verb
 
 4.  **Intent** (will, shall, going to, want to): These signal future actions and determinations.
 
-The complete list can be found in Appendix. The distribution of the four groups of modals across the books is shown in @fig-modal_verb.
-
-The most striking difference appears in the "authority ratio" (@fig-authority) —the ratio of world-building and intent modals (groups 1 and 4, expressing certainty) to possibility and hypothetical modals (groups 2 and 3 which express uncertainty). *Fortunately, the Milk* (FTM) stands out with a distinctly high authority ratio (0.96), substantially higher than all other books which range between 0.42-0.53. This further challenges the attempt to categorise a work into a dichotomy of children/adults literature based on linguistic features alone. In fact, books like *Coraline* (0.45) and *The Graveyard Book* (0.45) have authority ratios comparable to or even lower than typically presumed adult-oriented works like *American Gods* (0.53) and *Smoke and Mirrors* (0.53).
-
 ```{r}
 #| label: mocal_verb_cal
-#| include: false
-# Modal Verb Analysis by Narrative Function
-# ---------------------------------------
 
-# Prepare book texts - create if not already available
-book_texts <- gaiman_corpus$document_level %>%
-  group_by(book_id) %>%
-  summarise(text = paste(text, collapse = " ")) %>%
+book_texts <- gaiman_corpus$document_level |>
+  group_by(book_id) |>
+  summarise(text = paste(text, collapse = " ")) |>
   ungroup()
 
-# Corrected function to categorize modal verbs by narrative function
+# Corrected function to categorise modal verbs by narrative function
 analyze_modal_functions <- function(text) {
   # Define patterns for modal categories
   world_building_pattern <- "\\b(must|should|have to|has to|had to|always|never)\\b"
@@ -1470,8 +1372,8 @@ analyze_modal_functions <- function(text) {
 }
 
 # Apply function to each book
-modal_results <- book_texts %>%
-  rowwise() %>%
+modal_results <- book_texts |>
+  rowwise() |>
   mutate(
     # Apply the function to get modal counts
     modal_counts = list(analyze_modal_functions(text)),
@@ -1480,16 +1382,16 @@ modal_results <- book_texts %>%
     possibility = modal_counts["possibility"],
     hypothetical = modal_counts["hypothetical"],
     intent = modal_counts["intent"],
-    # Get total word count for normalization
+    # Get total word count for normalising
     total_words = str_count(text, "\\S+"),
-    # Normalize per 1000 words
+    # Normalise per 1000 words
     world_building_per_k = (world_building / total_words) * 1000,
     possibility_per_k = (possibility / total_words) * 1000,
     hypothetical_per_k = (hypothetical / total_words) * 1000,
     intent_per_k = (intent / total_words) * 1000,
     # Calculate authority ratio (world_building + intent vs. possibility + hypothetical)
     authority_ratio = (world_building + intent) / (possibility + hypothetical)
-  ) %>%
+  ) |>
   # Select only needed columns
   select(book_id, 
          world_building, possibility, hypothetical, intent, 
@@ -1500,25 +1402,24 @@ modal_results <- book_texts %>%
 
 ```{r}
 #| label: fig-modal_verb
-#| echo: false
 #| fig-cap: Modal Verb Usage by Narrative Function
-# Get book titles for visualization
-modal_results <- modal_results %>%
+# Get book titles for vis
+modal_results <- modal_results |>
   left_join(
-    gaiman_corpus$document_level %>% 
-      select(book_id, title) %>% 
+    gaiman_corpus$document_level |> 
+      select(book_id, title) |> 
       distinct(),
     by = "book_id"
   )
 
-# Prepare data for visualization
-modal_long <- modal_results %>%
-  select(book_id, title, ends_with("_per_k")) %>%
+
+modal_long <- modal_results |>
+  select(book_id, title, ends_with("_per_k")) |>
   pivot_longer(
     cols = ends_with("_per_k"),
     names_to = "modal_type",
     values_to = "frequency_per_k"
-  ) %>%
+  ) |>
   # Clean up category names
   mutate(
     modal_type = case_when(
@@ -1556,9 +1457,8 @@ print(modal_plot)
 
 ```{r}
 #| label: fig-authority
-#| echo: false
 #| fig-cap: Narrative Voice Authority in Gaiman's Works
-# Authority ratio visualization
+# Authority ratio vis
 authority_plot <- ggplot(modal_results,
                         aes(x = reorder(book_id, authority_ratio),
                             y = authority_ratio)) +
@@ -1574,12 +1474,9 @@ authority_plot <- ggplot(modal_results,
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-# Display visualizations
 
 print(authority_plot)
 ```
-
-This finding suggests that modal usage in Gaiman's work does not neatly align with presumed audience demographics. The exceptional authority ratio in *Fortunately, the Milk* may reflect its unique status as a humorous children's picture book rather than representing a general pattern for all children's literature. The similarity in authority ratios across most other books indicates that Gaiman maintains a relatively consistent approach to modal expression regardless of intended audience.
 
 ### Integrated Analysis
 
@@ -1587,14 +1484,8 @@ The previous sections examined Gaiman's stylistic variations at multiple linguis
 
 ```{r}
 #| label: fig-pca_feature_selection
-#| echo: false
-#| message: false
-#| warning: false
-#| results: hide 
-#| fig-cap: "Linguistic Spectrum of Gaiman's Works"
-
-# PCA Analysis of Linguistic Features in Neil Gaiman's Works
-# Purpose: Data-driven exploration of stylistic patterns across books
+#| fig-cap: Linguistic Spectrum of Gaiman's Works
+#| results: hide
 
 
 # Step 1: Compile the features matrix
@@ -1631,7 +1522,7 @@ gaiman_features <- data.frame(
 
 # Step 2: Set book_id as rownames and remove from data matrix
 row.names(gaiman_features) <- gaiman_features$book_id
-gaiman_features <- gaiman_features %>% select(-book_id)
+gaiman_features <- gaiman_features |> select(-book_id)
 
 # Step 3: Run the PCA
 # -----------------------------------------------------------------
@@ -1641,8 +1532,8 @@ gaiman_pca <- prcomp(gaiman_features, scale = TRUE)
 # Step 4: Examine basic PCA results
 # -----------------------------------------------------------------
 # Variance explained by each principal component
-#summary(gaiman_pca) 
-#No raw data shown for report
+summary(gaiman_pca) 
+
 
 # Extract the feature loadings on principal components
 loadings <- gaiman_pca$rotation
@@ -1653,10 +1544,10 @@ book_scores <- as.data.frame(gaiman_pca$x)
 book_scores$book_id <- rownames(book_scores)
 
 # Join with book titles for clearer labeling
-book_scores <- book_scores %>%
+book_scores <- book_scores |>
   left_join(
-    gaiman_corpus$document_level %>%
-      select(book_id, title) %>%
+    gaiman_corpus$document_level |>
+      select(book_id, title) |>
       distinct(),
     by = "book_id"
   )
@@ -1723,62 +1614,16 @@ feature_contrib <- data.frame(
   feature = colnames(gaiman_features),
   PC1_contribution = abs(loadings[, 1]),
   PC2_contribution = abs(loadings[, 2])
-) %>%
+) |>
   arrange(desc(PC1_contribution))
 
-#print(feature_contrib)
-# cant make it in the report maybe appendix
+print(feature_contrib)
+
 ```
-
-To synthesise the multidimensional linguistic data, this study employed Principal Component Analysis (PCA), a statistical technique that identifies patterns across multiple variables. PCA transforms potentially correlated variables into a smaller set of uncorrelated variables called principal components. Each component captures a portion of the total variation in the data, with the first component capturing the largest amount of variation, the second component capturing the second largest, and so on.
-
-For this analysis, 12 key metrics from previous analyses were included:
-
--   **Lexical features**: lexical diversity, average word length, percentages of short and long words
-
--   **Sentence features**: average sentence length, percentages of short and long sentences, mean dependency length, readability scores
-
--   **Content features**: sentiment percentages (positive/negative), profanity frequencies
-
--   **Discourse features**: POV distributions, perspective stability, authority ratio
-
-The PCA results reveal two distinct dimensions of stylistic variation in Gaiman's works. The first principal component, accounting for 42% of the total variance, corresponds primarily to linguistic complexity. This dimension shows substantial positive correlations with features that indicate more sophisticated language use: longer sentences (loading of 0.369), greater average word length (0.366), higher proportions of long words (0.307), and increased profanity usage (total: 0.351, strong: 0.295). Conversely, it correlates negatively with markers of simpler language, such as higher percentages of short words (-0.366) and shorter sentences (-0.323). These relationships suggest PC1 represents a spectrum from linguistically accessible text (negative values) to more complex expression (positive values).
-
-The second principal component, explaining 28% of variance, captures variations in narrative perspective and approach. This dimension correlates positively with third-person narration (0.385), negative sentiment expression (0.339), lexical diversity (0.274), and syntactic complexity as measured by dependency length (0.250). In contrast, it shows negative associations with perspective stability (-0.405), first-person narration (-0.398), and higher authority ratios (-0.393). This pattern suggests PC2 distinguishes between two narrative approaches: at one end, stable first-person narration with higher narrative authority, and at the other, more varied third-person perspectives with greater lexical range and syntactic complexity.
-
-Together, these two components provide a nuanced framework for understanding stylistic variation in Gaiman's corpus. Rather than revealing a single dimension of simplification for younger audiences, they suggest multiple independent aspects of stylistic adaptation. When plotted in this two-dimensional space (@fig-pca_feature_selection), Gaiman's works reveal patterns that both confirm and challenge conventional audience categorisations.
-
-Along PC1 (Linguistic Complexity), *Fortunately, the Milk* appears to the right, indicating slightly greater complexity, while books like *Stardust*, *The Graveyard Book*, and *Ocean at the End of the Lane* cluster toward the left (simpler language). This contradicts expectations that children's books would consistently show simpler linguistic features. *American Gods* and *Anansi Boys* do show higher complexity as expected for adult literature, but *Smoke and Mirrors* appears with simpler linguistic features despite targeting adult readers.
-
-PC2 (Narrative Perspective) shows additional differentiation, with *Fortunately, the Milk* at the extreme bottom (stable first-person narration with high authority), while *Anansi Boys* and *Stardust* occupy the upper regions (more third-person narration with higher negative sentiment). The *Ocean* *at the End of the Lane* and *Smoke and Mirrors* both exhibit lower PC2 values, suggesting similar narrative perspectives despite different target audiences.
-
-These positions demonstrate that Gaiman's stylistic adaptations don't follow a simple children-adult dichotomy. Instead, they reflect specific creative choices tailored to each work's narrative requirements. For instance, *Fortunately, the Milk*'s position suggests Gaiman adopts complex linguistic features within a highly stable narrative framework for this children's book, perhaps reflecting its fantastical multiverse-travel plot. Meanwhile, *Ocean at the End of the Lane* uses simpler language to effectively convey its childlike perspective on adult themes.
-
-This multidimensional analysis resolves apparent contradictions in individual metrics and reveals Gaiman as an author who adjusts specific stylistic dimensions based on narrative needs rather than making uniform simplifications for younger audiences.
-
-# Discussion
-
-# Conclusion
 
 # Reference {#sec-reference}
 
 ::: {#refs}
 :::
 
-# Appendix {#sec-appendix-.appendix}
-
-## Profanity Word List
-
-1.  mild_profanity: "damn", "darn", "hell", "crap", "suck", "stupid", "idiot", "dumb", "moron", "fool", "jerk", "dork", "heck", "gosh", "jeez", "Christ", "God", "Jesus", "bloody", "blast", "drat", "freaking", "frigging", "poop", "butt", "arse", "bollocks", "turd", "bum"
-2.  moderate_profanity: "ass", "asshole", "bastard", "shit", "bullshit", "piss", "screw", "screwed", "dick", "cock", "prick", "slut", "whore", "wanker", "tosser", "twat", "crap", "balls", "nuts", "pissed", "fart", "jackass", "douche", "douchebag", "tits", "boobs"
-3.  strong_profanity: "fuck", "fucked", "fucker", "fucking", "motherfucker", "motherfucking", "cunt", "pussy", "cock", "bitch", "cum", "jizz", "nigger", "faggot", "fag", "spic", "chink", "kike", "retard", "whore", "slut"
-
-## Modal Verbs 
-
--   world_building_pattern: must, should, have to, has to, had to, always, never
-
--   possibility_pattern: may, might, could, can, maybe, perhaps
-
--   hypothetical_pattern: would, if, whether
-
--   intent_pattern : will, shall, going to, want to"
+# 
